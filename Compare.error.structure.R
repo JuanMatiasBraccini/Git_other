@@ -1,4 +1,4 @@
-source("C:/Matias/Analyses/SOURCE_SCRIPTS/pseudo_r2.R")
+source("C:/Matias/Analyses/SOURCE_SCRIPTS/Git_other/pseudo_r2.R")
 library(bbmle)
 
 #Plot fit diagnostics
