@@ -8,9 +8,8 @@ library(lubridate)
 
 #Sharks data base
 setwd("U:/Shark")  # working directory
-channel <- odbcConnectAccess2007("Sharks v20200309.mdb")  #new databased updated by Vero
-#channel <- odbcConnectAccess2007("Sharks - SCR20200116 - 20200303 1047 - Ready for UAT 2.mdb")  #temporary file, delte once Vero finishes update database
-#channel <- odbcConnectAccess2007("Sharks - SCR20200116 - CHECKED OUT TO VERO - DO NOT USE.mdb")  #temporary file, delte once Vero finishes update database
+channel <- odbcConnectAccess2007("Sharks v20200323.mdb")  #new databased updated by Vero
+
 #channel <- odbcConnectAccess2007("Sharks.mdb")  
 Boat_bio=sqlFetch(channel, "Boat_bio", colnames = F) 
 Scalefish=sqlFetch(channel, "Scalefish", colnames = F) 
