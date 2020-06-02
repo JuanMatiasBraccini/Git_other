@@ -3,14 +3,16 @@
 library(RODBC)
 library(lunar)   #moon phases
 library(lubridate)
+library(tidyverse)
 
 #DATA SECTION
 
 #Sharks data base
 setwd("U:/Shark")  # working directory
+#setwd('C:/Matias')  #while working from home
 channel <- odbcConnectAccess2007("Sharks v20200323.mdb")  #new databased updated by Vero
+#channel <- odbcConnectAccess2007("Sharks.mdb") 
 
-#channel <- odbcConnectAccess2007("Sharks.mdb")  
 Boat_bio=sqlFetch(channel, "Boat_bio", colnames = F) 
 Scalefish=sqlFetch(channel, "Scalefish", colnames = F) 
 Boat_hdr=sqlFetch(channel, "Boat_hdr", colnames = F)   
@@ -451,3 +453,31 @@ a=subset(DATA.bio,SHEET_NO=="R00490" & FL==131 & SPECIES=="TK")
 a=a[1,]
 DATA.bio=subset(DATA.bio,!(SHEET_NO=="R00490" & FL==131 & SPECIES=="TK"))
 DATA.bio=rbind(DATA.bio,a)
+
+
+#Guitarfish, wedgefish and banjo rays composition
+Res.ves=c("FLIN","HAM","HOU","NAT","RV BREAKSEA","RV Gannet","RV GANNET","RV SNIPE 2")
+shov.sp=c("Guitarfish & shovelnose ray","Spotted shovelnose","Whitespot shovelnose",
+          "Fiddler ray")
+Shovel.prop.n=DATA.bio%>%
+                filter(!BOAT%in%Res.ves & Lat.round> (-26) &COMMON_NAME %in%shov.sp)%>%
+                mutate(Group=ifelse(SCIENTIFIC_NAME=='Rhynchobatus autraliae',"Wedgefishes",
+                                    "Banjo rays"))%>%
+              group_by(Group) %>%
+              summarise (n = n()) %>%
+              mutate(freq = n / sum(n))%>%
+              select(-n)%>%
+              data.frame
+
+Shovel.prop.s=DATA.bio%>%
+                filter(!BOAT%in%Res.ves & Lat.round<= (-26)&COMMON_NAME %in%shov.sp)%>%
+                mutate(Group=ifelse(SCIENTIFIC_NAME=='Rhynchobatus autraliae',"Wedgefishes",
+                                    "Banjo rays"))%>%
+                group_by(Group) %>%
+                summarise (n = n()) %>%
+                mutate(freq = n / sum(n))%>%
+                select(-n)%>%
+                data.frame
+
+write.csv(Shovel.prop.n,'C:/Matias/Data/Catch and Effort/prop_banjo_wedge_north.csv',row.names = F)
+write.csv(Shovel.prop.s,'C:/Matias/Data/Catch and Effort/prop_banjo_wedge_south.csv',row.names = F)
