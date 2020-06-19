@@ -230,7 +230,8 @@ DATA$TYPE="Elasmo"
 Scalefish$TYPE="Scalefish"
 
 DATA=rbind(DATA,Scalefish)  
-
+DATA$TYPE=with(DATA,ifelse(grepl(".T",SPECIES),'Scalefish',TYPE))
+DATA$TYPE=ifelse(DATA$SPECIES=="BT",'Elasmo',DATA$TYPE)
 
 #Fix lats
 names(DATA)[match(c("MID LAT","MID LONG"),names(DATA))]=c('Mid.Lat','Mid.Long')
