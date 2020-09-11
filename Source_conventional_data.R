@@ -12,7 +12,7 @@ library(lubridate)
   #Sharks.mdb data base
 setwd("U:/Shark")  # working directory    
 #setwd("M:/Fisheries Research/Production Databases/Shark")
-channel <- odbcConnectAccess2007("Sharks.mdb")      
+channel <- odbcConnectAccess2007("Sharks v20200323.mdb")      
 Tagging=sqlFetch(channel, "Tag data", colnames = F) 
 Boat_bio=sqlFetch(channel, "Boat_bio", colnames = F) 
 Boat_hdr=sqlFetch(channel, "Boat_hdr", colnames = F) 

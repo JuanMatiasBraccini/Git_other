@@ -4,7 +4,7 @@ library(RODBC)
 library(lunar)   #moon phases
 library(lubridate)
 library(tidyverse)
-
+options(stringsAsFactors = FALSE)
 #DATA SECTION
 
 #Sharks data base
@@ -219,8 +219,16 @@ Scalefish$SEX=as.character(Scalefish$SEX)
 Scalefish$SEX=with(Scalefish,ifelse(SEX=="f","F",ifelse(SEX=="m","M",SEX)))
 Scalefish$SPECIES=as.character(Scalefish$SPECIES)
 names(Scalefish)[match(c("SOAK TIME","NO HOOKS"),names(Scalefish))]=c("SOAK.TIME","N.hooks")
-
 Scalefish$BAG_NO=""
+add.these.cols=c('PL','COMMENTS','HookedTime',"ReleasedTime","BaitSpeciesId",
+                 "Weight","BloodFlag","FinClipFlag","MuscleFlag","Lactate","BleedingFlag",
+                 "HookLocation",
+                 "HookRemoved","HookType","HookSize","WireTrace","TrunkL","RetainedFlag")
+for(i in 1:length(add.these.cols))
+{
+  if(!add.these.cols[i]%in%names(Scalefish)) Scalefish=Scalefish%>%add_column(!!(add.these.cols[i]) :=NA)
+}
+
 DATA=DATA[,match(names(Scalefish),names(DATA))]
 
 
@@ -482,3 +490,10 @@ Shovel.prop.s=DATA.bio%>%
 
 write.csv(Shovel.prop.n,'C:/Matias/Data/Catch and Effort/prop_banjo_wedge_north.csv',row.names = F)
 write.csv(Shovel.prop.s,'C:/Matias/Data/Catch and Effort/prop_banjo_wedge_south.csv',row.names = F)
+
+
+#flush console
+all.objs=ls()
+all.objs=subset(all.objs,!all.objs%in%c('DATA','DATA.bio','DATA.ecosystems'))
+
+rm(list=all.objs)
