@@ -34,9 +34,30 @@ TL_FL=read.csv("C:/Matias/Data/Naturaliste/FL_to_TL.csv",stringsAsFactors=F)
 
 #PROCEDURE SECTION
 
-#Merge biological and sampling information                
-Boat_bio$SHEET_NO=as.character(Boat_bio$SHEET_NO)
-Boat_hdr$SHEET_NO=as.character(Boat_hdr$SHEET_NO)
+              
+
+#Fix soak time 
+names(Boat_hdr)[match(c("SOAK TIME",'AVE SET TIME','AVE HAUL TIME'),names(Boat_hdr))]=
+  c("SOAK.TIME",'AVE.SET.TIME','AVE.HAUL.TIME')  
+Boat_hdr$SOAK.TIME=with(Boat_hdr,ifelse(SOAK.TIME<0,NA,SOAK.TIME))
+Boat_hdr$SOAK.TIME=with(Boat_hdr,ifelse(is.na(SOAK.TIME),(AVE.HAUL.TIME-AVE.SET.TIME)/3600,SOAK.TIME))
+Boat_hdr$SOAK.TIME=with(Boat_hdr,ifelse(is.na(SOAK.TIME),(END_HAUL-START_SET)/3600,SOAK.TIME))
+Boat_hdr$SOAK.TIME=with(Boat_hdr,ifelse(is.na(SOAK.TIME),(START_HAUL-START_SET)/3600,SOAK.TIME))
+Boat_hdr$SOAK.TIME=with(Boat_hdr,ifelse(is.na(SOAK.TIME),(START_HAUL-END_SET)/3600,SOAK.TIME))
+Boat_hdr$SOAK.TIME=with(Boat_hdr,ifelse(SOAK.TIME<0,24+SOAK.TIME,SOAK.TIME))
+
+#Extract month,year, day, hour
+Boat_hdr=Boat_hdr%>%
+  mutate(date=as.Date(DATE,format="%Y-%m-%d"),
+         Day=mday(date),
+         Month=month(date),
+         year=year(date),
+         Set.time=strftime(START_SET, format='%H:%M'),
+         Haul.time=strftime(START_HAUL, format='%H:%M'))%>%
+  dplyr::select(-c(DATE))
+
+
+#Merge biological and sampling information  
 Use.full.boat.hdr=c("Count","season","ZONE","BOTTYPE","CTCHABLITY","RECORDER",
                     "SEA_CONDTN","MOON","MOON PHASE","SUBBLOCK",
                     "SEA/WEATHER CONDITIONS","Region","Buffer Zone")
@@ -154,18 +175,9 @@ Scalefish$SPECIES=with(Scalefish,ifelse(SPECIES=="sc.T","SC.T",SPECIES))
 Scalefish$SPECIES=with(Scalefish,ifelse(SPECIES=="dm.T","DM.T",SPECIES)) 
 
 
-  
-
 #Fix sex
-
 DATA$SEX=with(DATA,ifelse(SEX=="f","F",ifelse(SEX=="m","M",
       ifelse(SEX%in%c(",","?","9","B","n","N","p","P","u","Y"),NA,SEX))))
-
-#Fix soak time
-names(DATA)[match("SOAK TIME",names(DATA))]="SOAK.TIME"
-DATA$SOAK.TIME=with(DATA,ifelse(SOAK.TIME<0,NA,SOAK.TIME))
-DATA$SOAK.TIME=with(DATA,ifelse(is.na(SOAK.TIME),(START_HAUL-START_SET)/3600,SOAK.TIME))
-
 
 
 Cnhg=match(c("NO HOOKS","DART TAG NO","FINTAG NO","FINTAG 2","ATAG NO","BAG NO"),names(DATA))
@@ -178,7 +190,7 @@ Dummyss=subset(DATA,SHEET_NO%in%unique(Boat_bio_header_sp$SHEET_NO))
 Dummyss=Dummyss[!duplicated(Dummyss$SHEET_NO),]
 set.to.na=names(Dummyss)
 set.to.na=set.to.na[-match(c("SHEET_NO","LINE_NO","UNIQUE_ID",
-      "AVE SET TIME","AVE HAUL TIME","SOAK.TIME","DATE","Month","year",
+      "AVE.SET.TIME","AVE.HAUL.TIME","SOAK.TIME","date","Month","year",
       "BOAT","BLOCK","SKIPPER",           
       "START_SET","END_SET","START_HAUL","END_HAUL","BOTDEPTH",
       "MESH_SIZE", "MESH_DROP", "NET_LENGTH", "TEMP", "END1LATD",
@@ -205,7 +217,7 @@ DATA=DATA[,-match(c("a.intercept","b.slope"),names(DATA))]
 
 
 #Create Biological data dataframe
-keep.biol=c("SHEET_NO","SPECIES","DATE","TL","FL","SEX","RELEASE CONDITION","UMBIL_SCAR", "NO_DISCARDS",
+keep.biol=c("SHEET_NO","SPECIES","date","TL","FL","SEX","RELEASE CONDITION","UMBIL_SCAR", "NO_DISCARDS",
             "CLASPLENTH","CLASP_CALC","GON_STAGE","RUN_SPERM","MAXOVRYDIA","NO_YOLKOVA","UTERINESTG","NO_EMBRYOS",
             "NO_UNDEVELOPED","EMBLEN_1","EMBLEN_2","EMBLEN_3","EMBLEN_4","EMBLEN_5","EMBLEN_6","EMBLEN_7","EMBLEN_8",
             "EMBLEN_9","EMBLEN_10","EMBLEN_11","EMBLEN_12","STMCH_FULL","STMCH_CONT",
@@ -218,7 +230,7 @@ DATA$Numbers=1
 Scalefish$SEX=as.character(Scalefish$SEX)
 Scalefish$SEX=with(Scalefish,ifelse(SEX=="f","F",ifelse(SEX=="m","M",SEX)))
 Scalefish$SPECIES=as.character(Scalefish$SPECIES)
-names(Scalefish)[match(c("SOAK TIME","NO HOOKS"),names(Scalefish))]=c("SOAK.TIME","N.hooks")
+names(Scalefish)[match(c("NO HOOKS"),names(Scalefish))]=c("N.hooks")
 Scalefish$BAG_NO=""
 add.these.cols=c('PL','COMMENTS','HookedTime',"ReleasedTime","BaitSpeciesId",
                  "Weight","BloodFlag","FinClipFlag","MuscleFlag","Lactate","BleedingFlag",
@@ -247,19 +259,6 @@ DATA$Mid.Lat=-DATA$Mid.Lat
 DATA$END1LATD=-DATA$END1LATD
 DATA$END2LATD=-DATA$END2LATD
 
-
-#Extract month,year, day, hour
-DATA$date=as.Date(DATA$DATE,format="%Y-%m-%d")
-DATA$Day=mday(DATA$date)
-DATA$Month=month(DATA$date)
-DATA$year=year(DATA$date)
-
-
-DATA$Set.time=strftime(DATA$START_SET, format='%H:%M')
-DATA$Haul.time=strftime(DATA$START_HAUL, format='%H:%M')
-
-
-DATA=DATA[,-match(c("START_SET","START_HAUL","DATE","Numbers"),names(DATA))]
 
 #Add moon phase
 #note: 0 and 100 are full moon, 50 is new moon, 25 last quarter and 75 first quater
@@ -419,7 +418,7 @@ rm(D)
 
 #Create data set for ecoystem analysis of GN fishery
 Ecos.nams=c("SHEET_NO"  , "LINE_NO" , "SPECIES" , "TL" , "SEX"   ,         
-            "AVE SET TIME","AVE HAUL TIME","SOAK.TIME", "Month" , "year" ,          
+            "AVE.SET.TIME","AVE.HAUL.TIME","SOAK.TIME", "Month" , "year" ,          
             "BOAT" , "BLOCK" , "SKIPPER" , "END_SET" , "END_HAUL" ,
             "BOTDEPTH"  ,  "MESH_SIZE" ,  "MESH_DROP" , "NET_LENGTH" , "END1LATD"  ,     
             "END1LATM"  ,"END1LNGD"  ,  "END1LNGM" ,"END2LATD" ,  "END2LATM"  ,     
@@ -430,8 +429,8 @@ Ecos.nams=c("SHEET_NO"  , "LINE_NO" , "SPECIES" , "TL" , "SEX"   ,
 
 DATA.ecosystems=DATA[,match(Ecos.nams,names(DATA))]
 
-Chnge.this=c("AVE SET TIME","AVE HAUL TIME","SOAK.TIME","gillnet effort","Longline effort")
-To.this=  c("AVE.SET.TIME" , "AVE.HAUL.TIME" , "SOAK_TIME","gillnet.effort","Longline.effort")
+Chnge.this=c("SOAK.TIME","gillnet effort","Longline effort")
+To.this=  c("SOAK_TIME","gillnet.effort","Longline.effort")
 names(DATA.ecosystems)[match(Chnge.this,names(DATA.ecosystems))]=To.this
 
 
