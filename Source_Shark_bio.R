@@ -53,7 +53,11 @@ Boat_hdr=Boat_hdr%>%
          Month=month(date),
          year=year(date),
          Set.time=strftime(START_SET, format='%H:%M'),
-         Haul.time=strftime(START_HAUL, format='%H:%M'))%>%
+         Haul.time=strftime(START_HAUL, format='%H:%M'),
+         Set.time.end=strftime(END_SET, format='%H:%M'),
+         Haul.time.end=strftime(END_HAUL, format='%H:%M'),
+         Set.time.avg=strftime(AVE.SET.TIME, format='%H:%M'),
+         Haul.time.avg=strftime(AVE.HAUL.TIME, format='%H:%M'))%>%
   dplyr::select(-c(DATE))
 
 
@@ -108,6 +112,21 @@ move.to.scale$"NO UNMEASURED"=NA
 move.to.scale=move.to.scale[,match(c("SHEET_NO","Line no","SPECIES","TL","SEX","NO UNMEASURED"),names(move.to.scale))]
 Scalefish=rbind(Scalefish,move.to.scale)
 
+#add hook info to scalefish. Blank SPECIES in Boat.bio is the line number of a scalefish
+these.are.scalies=Boat_bio%>%
+                    filter(is.na(SPECIES))%>%
+                    dplyr::select(UNIQUE_ID,NewComments,LostFlag,DeadFlag,HookedTime,ReleasedTime,BaitSpeciesId,
+                                  HookLocation,HookType,HookSize,WireTrace,RetainedFlag)
+Scalefish=Scalefish%>%
+          mutate(dummy=`Line no`,
+                 dummy=ifelse(nchar(dummy)==2,paste('0',dummy,sep=''),
+                       ifelse(nchar(dummy)==1,paste('00',dummy,sep=''),
+                              dummy)),
+                 UNIQUE_ID=paste(SHEET_NO,dummy,sep=''))%>%
+      dplyr::select(-dummy)%>%
+        left_join(these.are.scalies,by="UNIQUE_ID")
+
+
 #remove typos
 typos.shk=c( "BZ"  , "CS" ,"BM","GK")
 DATA=subset(DATA,!SPECIES%in%typos.shk)
@@ -159,6 +178,10 @@ DATA$SPECIES=with(DATA,ifelse(SPECIES=="wd","WD",SPECIES))
 DATA$SPECIES=with(DATA,ifelse(SPECIES=="bw","BW",SPECIES)) 
 DATA$SPECIES=with(DATA,ifelse(SPECIES=="bt","BT",SPECIES)) 
 DATA$SPECIES=with(DATA,ifelse(SPECIES=="sr","SR",SPECIES)) 
+
+DATA$SPECIES=with(DATA,ifelse(SPECIES=="LJ","LJ.T",SPECIES)) 
+DATA$SPECIES=with(DATA,ifelse(SPECIES=="SA","SA.T",SPECIES)) 
+DATA$SPECIES=with(DATA,ifelse(SPECIES=="TW","TW.T",SPECIES)) 
 
 
 Scalefish$SPECIES=with(Scalefish,ifelse(SPECIES=="ba.T","BA.T",SPECIES)) 
@@ -232,10 +255,8 @@ Scalefish$SEX=with(Scalefish,ifelse(SEX=="f","F",ifelse(SEX=="m","M",SEX)))
 Scalefish$SPECIES=as.character(Scalefish$SPECIES)
 names(Scalefish)[match(c("NO HOOKS"),names(Scalefish))]=c("N.hooks")
 Scalefish$BAG_NO=""
-add.these.cols=c('PL','COMMENTS','HookedTime',"ReleasedTime","BaitSpeciesId",
-                 "Weight","BloodFlag","FinClipFlag","MuscleFlag","Lactate","BleedingFlag",
-                 "HookLocation",
-                 "HookRemoved","HookType","HookSize","WireTrace","TrunkL","RetainedFlag")
+add.these.cols=c('PL','COMMENTS',"Weight","BloodFlag","FinClipFlag","MuscleFlag","Lactate","BleedingFlag",
+                 "HookRemoved","TrunkL")
 for(i in 1:length(add.these.cols))
 {
   if(!add.these.cols[i]%in%names(Scalefish)) Scalefish=Scalefish%>%add_column(!!(add.these.cols[i]) :=NA)
