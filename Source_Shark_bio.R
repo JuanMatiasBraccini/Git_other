@@ -250,6 +250,7 @@ DATA.bio=DATA[,match(keep.biol,names(DATA))]
 #Merge scalefish and shark data
 DATA$Numbers=1
 
+Scalefish$VERT_SAMPL=NA
 Scalefish$SEX=as.character(Scalefish$SEX)
 Scalefish$SEX=with(Scalefish,ifelse(SEX=="f","F",ifelse(SEX=="m","M",SEX)))
 Scalefish$SPECIES=as.character(Scalefish$SPECIES)
