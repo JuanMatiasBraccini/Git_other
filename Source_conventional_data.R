@@ -3,6 +3,7 @@
 
 library(RODBC)    		#library for importing excel data
 library(lubridate)
+library(dplyr)
 
 
 #DATA SECTION
@@ -49,10 +50,6 @@ Flinders_hdr=subset(Flinders_hdr,select=c(SHEET_NO,Method))
 Boat_hdr=subset(Boat_hdr,select=c(SHEET_NO,Method))
 Boat_hdr$Method=as.character(Boat_hdr$Method)
 Gear=rbind(Boat_hdr,Flinders_hdr)
-
-
-Tagging$Recaptured=as.character(Tagging$"Captured?")
-Tagging$CAPT_METHD=as.character(Tagging$CAPT_METHD)
 
 
 #Identification of wobbegongs was found to be unreliable so set all wobbies to general
@@ -136,35 +133,56 @@ Tagging$Tag.no=as.character(Tagging$FINTAGNO)
 Tagging$ATAG.NO=Tagging$"ATAG NO"
 Tagging$RELEASE.DATE=Tagging$"RELEASE DATE"
 
-Tagging$Tag.no=with(Tagging,ifelse(is.na(Tag.no) & !(is.na(DARTTAGNO)),paste("Dart.",DARTTAGNO,sep=""),Tag.no))
-Tagging$Tag.no=with(Tagging,ifelse(is.na(Tag.no) & !(is.na(ATAG.NO)),paste("Acous.",ATAG.NO,sep=""),Tag.no))
-Tagging$Tag.no=with(Tagging,ifelse(is.na(Tag.no) & !(is.na(Tagging$"Tag no")),Tagging$"Tag no",Tag.no))
+
+Tagging %>% mutate(across(where(is.factor), as.character)) -> Tagging  #convert all factors to character
+Boat_bio %>% mutate(across(where(is.factor), as.character)) -> Boat_bio
+Gummy %>% mutate(across(where(is.factor), as.character)) -> Gummy
+
+Tagging=Tagging%>%
+          rename(Tag.no2='Tag no',
+                 Recaptured="Captured?")%>%
+          mutate(CONDITION=ifelse(CONDITION=="?",NA,CONDITION),
+                 Tag.type=case_when(!is.na(Tag.no)|!is.na(Tag.no2)~'conventional',
+                                    is.na(Tag.no) & !is.na(DARTTAGNO)~'conventional.dart',
+                                    is.na(Tag.no) & !is.na(ATAG.NO)~'acoustic',
+                                    TRUE~'unknown'),
+                 Tag.no=ifelse(is.na(Tag.no) & !is.na(Tag.no2),Tag.no2,
+                        ifelse(is.na(Tag.no) & !is.na(DARTTAGNO),DARTTAGNO,
+                        ifelse(is.na(Tag.no) & !is.na(ATAG.NO),ATAG.NO,
+                        Tag.no))))%>%
+          dplyr::select(-Tag.no2)%>%
+          mutate(Tag.no=tolower(Tag.no))
 
 
-
-###
-#Add TL to species where TL is measured but not FL
-Boat_bio=Boat_bio[,match(c("SHEET_NO","SPECIES","DART TAG NO","FINTAG NO","ATAG NO","FL","TL"),
-                         names(Boat_bio))]
-colnames(Boat_bio)[match(c("DART TAG NO","FINTAG NO","ATAG NO"),colnames(Boat_bio))]=c("DARTTAGNO","FINTAGNO","ATAG.NO")
-Boat_bio$Tag.no=as.character(Boat_bio$FINTAGNO)
-Boat_bio$DARTTAGNO=as.character(Boat_bio$DARTTAGNO)
-Boat_bio$ATAG.NO=as.numeric(as.character(Boat_bio$ATAG.NO))
-Boat_bio$Tag.no=with(Boat_bio,ifelse(is.na(Tag.no) & !(is.na(DARTTAGNO)),paste("Dart.",DARTTAGNO,sep=""),Tag.no))
-Boat_bio$Tag.no=with(Boat_bio,ifelse(is.na(Tag.no) & !(is.na(ATAG.NO)),paste("Acous.",ATAG.NO,sep=""),Tag.no))
-TL.species=c("TN","PZ","ZE","PC","PM","FR")
-Boat_bio=subset(Boat_bio,!is.na(Tag.no) & SPECIES%in%TL.species)
-
-Tagging=merge(Tagging,subset(Boat_bio,select=c(SPECIES,TL,Tag.no)),by=c("SPECIES","Tag.no"),all.x=T)
-Tagging$FL=with(Tagging,ifelse(is.na(FL)&!is.na(TL),TL,FL))
+#Add TL to species where TL is measured but not FL and any tagging event not in Tagging
+Boat_bio=Boat_bio%>%
+            rename(Tag.no="FINTAG NO",
+                   DARTTAGNO="DART TAG NO",
+                   ATAG.NO="ATAG NO",
+                   FINTAG.2="FINTAG 2")%>%
+            dplyr::select(SHEET_NO,SPECIES,FL,TL,Tag.no,DARTTAGNO,ATAG.NO,FINTAG.2)%>%
+            mutate(Tag.type2=case_when(!is.na(Tag.no)|!is.na(FINTAG.2)~'conventional',
+                                      is.na(Tag.no) & !is.na(DARTTAGNO)~'conventional.dart',
+                                      is.na(Tag.no) & !is.na(ATAG.NO)~'acoustic',
+                                      TRUE~'unknown'),
+                    Tag.no=ifelse(is.na(Tag.no) & !is.na(DARTTAGNO),paste("D",DARTTAGNO,sep=""),
+                                ifelse(is.na(Tag.no) & !is.na(ATAG.NO),paste("A",ATAG.NO,sep=""),
+                                Tag.no)))%>%
+            filter(!is.na(Tag.no))%>%
+            mutate(Tag.no=tolower(Tag.no))
+Tagging=full_join(Tagging,subset(Boat_bio,select=c(SPECIES,TL,Tag.no,Tag.type2)),by=c("SPECIES","Tag.no"))%>%
+            mutate(FL=ifelse(is.na(FL)&!is.na(TL),TL*.85,FL),
+                   Tag.type=ifelse(is.na(Tag.type)&!is.na(Tag.type2),Tag.type2,Tag.type))%>%
+        dplyr::select(-Tag.type2)
 
 
 
 #check for duplicates   
-Tagging$Unico=with(Tagging,paste(Tag.no,SPECIES,FL,RELEASE.DATE))
+Tagging$Unico=with(Tagging,paste(Tag.no,SPECIES,FL))
 ind=which(duplicated(Tagging$Unico)==T)
 Dup.Tags=Tagging$Unico[ind]
 if(length(Dup.Tags)>0)Tagging=Tagging[!(duplicated(Tagging$Unico)),-match("Unico",names(Tagging))]
+
 
 #subset tagging data
 Tagging$Day.rel=day(Tagging$RELEASE.DATE)    
@@ -173,13 +191,12 @@ Tagging$Yr.rel=year(Tagging$RELEASE.DATE)
 Tagging$Day.rec=day(Tagging$DATE_CAPTR)
 Tagging$Mn.rec=month(Tagging$DATE_CAPTR)
 Tagging$Yr.rec=year(Tagging$DATE_CAPTR)
-
-
-
-these.vars=c("SHEET_NO","SPECIES","FINTAGNO","Tag.no","FL","SEX","CONDITION","REL_LATD","REL_LATM","CAPT_METHD",
-             "REL_LNGD","REL_LNGM","CAP_LATD","CAP_LATM","CAP_LNGD","CAP_LNGM","CAP_FL",
-             "Day.rel","Mn.rel","Yr.rel","Day.rec","Mn.rec","Yr.rec")
-Tagging=Tagging[,match(these.vars,names(Tagging))]
+these.vars=c("SHEET_NO","SPECIES","FINTAGNO","Tag.no","Tag.type","FL","SEX","CONDITION","REL_LATD","REL_LATM",
+             "REL_LNGD","REL_LNGM","Day.rel","Mn.rel","Yr.rel",
+             "CAPT_METHD","Recaptured","CAP_LATD","CAP_LATM","CAP_LNGD","CAP_LNGM","CAP_FL",
+             "Day.rec","Mn.rec","Yr.rec")
+Tagging=Tagging[,match(these.vars,names(Tagging))]%>%
+              mutate(Recaptured=ifelse(Recaptured%in%c("Y","y"),"YES","NO"))
 
 
 #combine degrees and minutes (already in decimales degrees)
@@ -193,22 +210,11 @@ Tagging$Long.rec=with(Tagging,(CAP_LNGD+(CAP_LNGM)/100))
 Drop.this=c("REL_LNGD","REL_LNGM","CAP_LATD","CAP_LATM","CAP_LNGD","CAP_LNGM","REL_LATD","REL_LATM")
 Tagging=Tagging[,-match(Drop.this,names(Tagging))]
 
-#Combine tagging data sets
-Tagging$SPECIES=as.character(Tagging$SPECIES)
-Tagging$FINTAGNO=as.character(Tagging$FINTAGNO)
-Tagging$"Tag.no"=as.character(Tagging$"Tag.no")
-Tagging$SEX=as.character(Tagging$SEX)
-Tagging$CONDITION=as.character(Tagging$CONDITION)
-Tagging$CONDITION=with(Tagging,ifelse(CONDITION=="?",NA,CONDITION))
-Tagging$CAP_FL=as.numeric(as.character(Tagging$CAP_FL))
 
 
+#add gummy tagging data
+Gummy$Tag.type="conventional"
 Gummy=Gummy[,match(names(Tagging),names(Gummy))]
-Gummy$FINTAGNO=as.character(Gummy$FINTAGNO)
-Gummy$"Tag.no"=as.character(Gummy$"Tag.no")
-Gummy$SEX=as.character(Gummy$SEX)
-Gummy$CONDITION=as.character(Gummy$CONDITION)
-
 Tagging=rbind(Tagging,Gummy)
 
 
@@ -219,18 +225,21 @@ these.nonsense.rec=match(Tag.nonsense.rec,Tagging$FINTAGNO)
 na.these.cols=match(c("Lat.rec","Long.rec"),names(Tagging))
 Tagging[these.nonsense.rec,na.these.cols]=NA  #set to NA the recapture location
 
-
+Tagging=Tagging%>%
+            mutate(Recaptured=ifelse(Recaptured=="YES" & is.na(CAP_FL)
+                                     & is.na(Day.rec) & is.na(Mn.rec) & is.na(Yr.rec)
+                                     & is.na(Lat.rec) & is.na(Long.rec),"NO",Recaptured),
+                   Lat.rec=ifelse(Recaptured=="NO",NA,Lat.rec),
+                   Long.rec=ifelse(Recaptured=="NO",NA,Long.rec))
 
 #fix species names
-Tagging$SPECIES=as.character(Tagging$SPECIES)
-Tagging$SPECIES=ifelse(Tagging$SPECIES=="tk","TK",Tagging$SPECIES)
+Tagging$SPECIES=toupper(Tagging$SPECIES)
 
 #change awkward names
 colnames(Tagging)[match(c("SEX","SPECIES","FL"),names(Tagging))]=
   c("Sex","Species","Rel_FL")
 
 #fix sex
-Tagging$Sex=as.character(Tagging$Sex)
 Tagging$Sex=ifelse(Tagging$Sex%in%c("F","f"),"F",ifelse(Tagging$Sex%in%c("m","M"),"M","U"))
 
 
@@ -264,7 +273,7 @@ names(LetrasAreas)=names(ColorAreas)
 
 
 #remove nonsene recapture and release FL
-Tagging$Rel_FL=with(Tagging,ifelse(Rel_FL==1466,146,ifelse(Rel_FL==1459,149,Rel_FL)))
+Tagging$Rel_FL=with(Tagging,ifelse(Rel_FL>600,Rel_FL/10,Rel_FL))
 Tagging$Rel_FL=ifelse(Tagging$Rel_FL>500,NA,Tagging$Rel_FL)
 Tagging$CAP_FL=ifelse(Tagging$CAP_FL>500,NA,Tagging$CAP_FL)
 Tagging$Rel_FL=ifelse(Tagging$Rel_FL==0,NA,Tagging$Rel_FL)
@@ -275,7 +284,7 @@ Tagging$CAP_FL=with(Tagging,ifelse(CAP_FL<Rel_FL,NA,CAP_FL))
 
 
 #Add species full name
-Tagging=merge(Tagging,Species.Codes,by="Species",all.x=T)
+Tagging=left_join(Tagging,Species.Codes,by="Species")
 
 
 #Remove unknown species
@@ -427,3 +436,10 @@ a=a[!duplicated(paste(a$SHEET_NO,a$Species,a$Rel_FL)),]
 #write.csv(a,"C:/Users/myb/Desktop/Fix.these.sizes.csv",row.names=F)   
 
 rm(a,TG.sp)
+
+
+#check for duplicates   
+Tagging$Unico=with(Tagging,paste(Tag.no,Species,Rel_FL))
+ind=which(duplicated(Tagging$Unico)==T)
+Dup.Tags=Tagging$Unico[ind]
+if(length(Dup.Tags)>0)Tagging=Tagging[!(duplicated(Tagging$Unico)),-match("Unico",names(Tagging))]
