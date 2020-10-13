@@ -6,7 +6,7 @@ library(lubridate)
 library(dplyr)
 
 
-#DATA SECTION
+# DATA SECTION -----------------------------------------------------------------------
 
 #WA sharks
 
@@ -15,7 +15,6 @@ setwd("U:/Shark")  # working directory
 #setwd("M:/Fisheries Research/Production Databases/Shark")
 channel <- odbcConnectAccess2007("Sharks v20200323.mdb")      
 Tagging=sqlFetch(channel, "Tag data", colnames = F) 
-Boat_bio=sqlFetch(channel, "Boat_bio", colnames = F) 
 Boat_hdr=sqlFetch(channel, "Boat_hdr", colnames = F) 
 Boat_bio=sqlFetch(channel, "Boat_bio", colnames = F) 
 Flinders_hdr=sqlFetch(channel, "FLINDERS HDR", colnames = F) 
@@ -42,21 +41,28 @@ Species.Size.Range=read.csv("C:/Matias/Data/Species.Size.Range.csv")
 
 
 
-#PROCEDURE SECTION
+# PROCEDURE SECTION -----------------------------------------------------------------------
 
 #Early manipulations
-Flinders_hdr$Method="DL"
-Flinders_hdr=subset(Flinders_hdr,select=c(SHEET_NO,Method))
-Boat_hdr=subset(Boat_hdr,select=c(SHEET_NO,Method))
+these.hdr=c('SHEET_NO','Method','DATE','BOTDEPTH','BOAT','MID.LAT','MID.LONG')
+Flinders_hdr=Flinders_hdr%>%
+              rename(DATE='DATE SET',
+                     BOTDEPTH='Avg DEPTH')%>%
+              mutate(Method="DL",
+                     BOAT='Flinders',
+                     MID.LONG= END1LNGD+(END1LNGM/60),
+                     MID.LAT= END1LATD+(END1LATM/60),
+                     MID.LAT=-abs(MID.LAT))
+Boat_hdr=Boat_hdr%>%
+            rename(MID.LONG='MID LONG',
+                   MID.LAT='MID LAT')%>%
+            mutate(MID.LAT=-abs(MID.LAT))
+
+Flinders_hdr=subset(Flinders_hdr,select=these.hdr)
+Boat_hdr=subset(Boat_hdr,select=these.hdr)
 Boat_hdr$Method=as.character(Boat_hdr$Method)
 Gear=rbind(Boat_hdr,Flinders_hdr)
 
-
-#Identification of wobbegongs was found to be unreliable so set all wobbies to general
-Tagging$SPECIES=as.character(Tagging$SPECIES)
-Tagging$SPECIES=with(Tagging,ifelse(SPECIES%in%c("WC","WD","WS","WW"),"WB",SPECIES))
-
-Tagging$SPECIES=with(Tagging,ifelse(SPECIES=="LP","ZE",SPECIES))   #LP is zebra shark
 
 #Make gummy variables compatible
 Gummy=rbind(GummyWA,GummySA)
@@ -95,6 +101,12 @@ Gummy$Lat.rec=-Gummy$LatRc
 Gummy$Long.rec=Gummy$LonRc
 Gummy$Lat.rels=-Gummy$LatRl
 Gummy$Long.rels=Gummy$LonRl
+
+Gummy$Tag.type="conventional"
+
+Gummy$Method=Gummy$CAPT_METHD
+Gummy$BOTDEPTH=NA
+Gummy$BOAT=NA
 
 
 #add missing records
@@ -137,6 +149,7 @@ Tagging$RELEASE.DATE=Tagging$"RELEASE DATE"
 Tagging %>% mutate(across(where(is.factor), as.character)) -> Tagging  #convert all factors to character
 Boat_bio %>% mutate(across(where(is.factor), as.character)) -> Boat_bio
 Gummy %>% mutate(across(where(is.factor), as.character)) -> Gummy
+Species.Codes %>% mutate(across(where(is.factor), as.character)) -> Species.Codes
 
 Tagging=Tagging%>%
           rename(Tag.no2='Tag no',
@@ -155,12 +168,18 @@ Tagging=Tagging%>%
 
 
 #Add TL to species where TL is measured but not FL and any tagging event not in Tagging
+#note: The Tag data table in Shark.mdb got some what corrupted and is not capturing all tagging event post 2016
+#      Hence, combine with Boat bio.....
+TL.species=c('ZE','PC','FR','TN','PZ','PM','SR') 
 Boat_bio=Boat_bio%>%
             rename(Tag.no="FINTAG NO",
                    DARTTAGNO="DART TAG NO",
                    ATAG.NO="ATAG NO",
-                   FINTAG.2="FINTAG 2")%>%
-            dplyr::select(SHEET_NO,SPECIES,FL,TL,Tag.no,DARTTAGNO,ATAG.NO,FINTAG.2)%>%
+                   FINTAG.2="FINTAG 2",
+                   CONDITION_Boat_bio="RELEASE CONDITION",
+                   SEX_Boat_bio=SEX)%>%
+            dplyr::select(SHEET_NO,SPECIES,FL,TL,Tag.no,DARTTAGNO,ATAG.NO,FINTAG.2,
+                          CONDITION_Boat_bio,SEX_Boat_bio)%>%
             mutate(Tag.type2=case_when(!is.na(Tag.no)|!is.na(FINTAG.2)~'conventional',
                                       is.na(Tag.no) & !is.na(DARTTAGNO)~'conventional.dart',
                                       is.na(Tag.no) & !is.na(ATAG.NO)~'acoustic',
@@ -169,11 +188,34 @@ Boat_bio=Boat_bio%>%
                                 ifelse(is.na(Tag.no) & !is.na(ATAG.NO),paste("A",ATAG.NO,sep=""),
                                 Tag.no)))%>%
             filter(!is.na(Tag.no))%>%
-            mutate(Tag.no=tolower(Tag.no))
-Tagging=full_join(Tagging,subset(Boat_bio,select=c(SPECIES,TL,Tag.no,Tag.type2)),by=c("SPECIES","Tag.no"))%>%
-            mutate(FL=ifelse(is.na(FL)&!is.na(TL),TL*.85,FL),
+            mutate(Tag.no=tolower(Tag.no))%>%
+            rename(SHEET_NO_Boat_bio=SHEET_NO)
+
+Tagging=full_join(Tagging,subset(Boat_bio,select=c(SHEET_NO_Boat_bio,SPECIES,TL,Tag.no,
+                                                   Tag.type2,CONDITION_Boat_bio,SEX_Boat_bio)),
+                  by=c("SPECIES","Tag.no"))%>%
+            mutate(FL=ifelse(is.na(FL) & !is.na(TL) & !SPECIES%in%TL.species,TL*.85,FL),
+                   FL=ifelse(SPECIES%in%TL.species,TL,FL),
                    Tag.type=ifelse(is.na(Tag.type)&!is.na(Tag.type2),Tag.type2,Tag.type))%>%
-        dplyr::select(-Tag.type2)
+        dplyr::select(-Tag.type2)%>%
+        mutate(SHEET_NO=ifelse(is.na(SHEET_NO),SHEET_NO_Boat_bio,SHEET_NO),
+               CONDITION=ifelse(is.na(CONDITION),CONDITION_Boat_bio,CONDITION),
+               SEX=ifelse(is.na(SEX),SEX_Boat_bio,SEX))
+
+Gear1=Gear%>%
+        distinct(SHEET_NO,.keep_all = T)%>%
+        filter(SHEET_NO%in%unique(Tagging$SHEET_NO))%>%
+        rename(Method_hdr=Method,
+               DATE_hdr=DATE,
+               BOTDEPTH_hdr=BOTDEPTH,
+               BOAT_hdr=BOAT,
+               MID.LAT_hdr=MID.LAT,
+               MID.LONG_hdr=MID.LONG)%>%  
+        mutate(Day.rel_hdr=day(DATE_hdr),    
+               Mn.rel_hdr=month(DATE_hdr),
+               Yr.rel_hdr=year(DATE_hdr))
+  
+Tagging=Tagging%>%left_join(Gear1,by='SHEET_NO') 
 
 
 
@@ -185,16 +227,25 @@ if(length(Dup.Tags)>0)Tagging=Tagging[!(duplicated(Tagging$Unico)),-match("Unico
 
 
 #subset tagging data
-Tagging$Day.rel=day(Tagging$RELEASE.DATE)    
-Tagging$Mn.rel=month(Tagging$RELEASE.DATE)
-Tagging$Yr.rel=year(Tagging$RELEASE.DATE)
-Tagging$Day.rec=day(Tagging$DATE_CAPTR)
-Tagging$Mn.rec=month(Tagging$DATE_CAPTR)
-Tagging$Yr.rec=year(Tagging$DATE_CAPTR)
+Tagging=Tagging%>%
+          mutate(Day.rel=day(RELEASE.DATE),   
+                 Mn.rel=month(RELEASE.DATE),
+                 Yr.rel=year(RELEASE.DATE),
+                 Day.rec=day(DATE_CAPTR),
+                 Mn.rec=month(DATE_CAPTR),
+                 Yr.rec=year(DATE_CAPTR),
+                 Day.rel=ifelse(is.na(Day.rel),Day.rel_hdr,Day.rel),
+                 Mn.rel=ifelse(is.na(Mn.rel),Mn.rel_hdr,Mn.rel),
+                 Yr.rel=ifelse(is.na(Yr.rel),Yr.rel_hdr,Yr.rel))
+
+Tagging$CAP_FL=as.numeric(Tagging$CAP_FL)
+
 these.vars=c("SHEET_NO","SPECIES","FINTAGNO","Tag.no","Tag.type","FL","SEX","CONDITION","REL_LATD","REL_LATM",
              "REL_LNGD","REL_LNGM","Day.rel","Mn.rel","Yr.rel",
              "CAPT_METHD","Recaptured","CAP_LATD","CAP_LATM","CAP_LNGD","CAP_LNGM","CAP_FL",
-             "Day.rec","Mn.rec","Yr.rec")
+             "Day.rec","Mn.rec","Yr.rec",
+             'RELLATDECDEG','RELLNGDECDEG','RECLATDECDEG','RECLNGDECDEG',
+             'Method_hdr','BOTDEPTH_hdr','BOAT_hdr','MID.LAT_hdr','MID.LONG_hdr')
 Tagging=Tagging[,match(these.vars,names(Tagging))]%>%
               mutate(Recaptured=ifelse(Recaptured%in%c("Y","y"),"YES","NO"))
 
@@ -206,16 +257,27 @@ Tagging$Long.rels=with(Tagging,(REL_LNGD+(REL_LNGM)/100))
 Tagging$Lat.rec=with(Tagging,-(CAP_LATD+(CAP_LATM)/100))
 Tagging$Long.rec=with(Tagging,(CAP_LNGD+(CAP_LNGM)/100))
 
+Tagging=Tagging%>%
+          mutate(Long.rels=ifelse(is.na(Long.rels),RELLNGDECDEG,Long.rels),
+                 Lat.rels=ifelse(is.na(Lat.rels),-abs(RELLATDECDEG),Lat.rels),
+                 Long.rec=ifelse(is.na(Long.rec),RECLNGDECDEG,Long.rec),
+                 Lat.rec=ifelse(is.na(Lat.rec),-abs(RECLATDECDEG),Lat.rec),
+                 Long.rels=ifelse(is.na(Long.rels),MID.LONG_hdr,Long.rels),
+                 Lat.rels=ifelse(is.na(Lat.rels),MID.LAT_hdr,Lat.rels))%>%
+          rename(Method=Method_hdr,
+                 BOTDEPTH=BOTDEPTH_hdr,
+                 BOAT=BOAT_hdr)
+
 #drop redundant vars
-Drop.this=c("REL_LNGD","REL_LNGM","CAP_LATD","CAP_LATM","CAP_LNGD","CAP_LNGM","REL_LATD","REL_LATM")
+Drop.this=c("REL_LNGD","REL_LNGM","CAP_LATD","CAP_LATM","CAP_LNGD","CAP_LNGM","REL_LATD","REL_LATM",
+            'RELLATDECDEG','RELLNGDECDEG','RECLATDECDEG','RECLNGDECDEG',
+            'MID.LAT_hdr','MID.LONG_hdr')
 Tagging=Tagging[,-match(Drop.this,names(Tagging))]
 
 
 
 #add gummy tagging data
-Gummy$Tag.type="conventional"
-Gummy=Gummy[,match(names(Tagging),names(Gummy))]
-Tagging=rbind(Tagging,Gummy)
+Tagging=rbind(Tagging,Gummy[,match(names(Tagging),names(Gummy))])
 
 
 
@@ -230,10 +292,26 @@ Tagging=Tagging%>%
                                      & is.na(Day.rec) & is.na(Mn.rec) & is.na(Yr.rec)
                                      & is.na(Lat.rec) & is.na(Long.rec),"NO",Recaptured),
                    Lat.rec=ifelse(Recaptured=="NO",NA,Lat.rec),
-                   Long.rec=ifelse(Recaptured=="NO",NA,Long.rec))
+                   Long.rec=ifelse(Recaptured=="NO",NA,Long.rec),
+                   Long.rels=ifelse(SHEET_NO=='R00863',112.7868,
+                             ifelse(SHEET_NO=='Q00241',122.6462,
+                             ifelse(SHEET_NO=='Q00654',118.4068,
+                                    Long.rels))),
+                   Lat.rels=ifelse(SHEET_NO=='M00087',-23.06767,
+                            ifelse(SHEET_NO=='Q00241',-33.89615,
+                            ifelse(SHEET_NO=='Q00654',-34.82442,
+                                  Lat.rels))))
 
 #fix species names
+#Tagging$SPECIES=with(Tagging,ifelse(SPECIES%in%c("WC","WD","WS","WW"),"WB",SPECIES)) #Identification of wobbegongs was found to be unreliable so set all wobbies to general
+
+Tagging$SPECIES=with(Tagging,ifelse(SPECIES=="LP","ZE",
+                             ifelse(SPECIES=="DF","SD",
+                                    SPECIES)))   #LP is zebra shark; DF is spurdog
+
 Tagging$SPECIES=toupper(Tagging$SPECIES)
+
+Tagging=subset(Tagging,!SPECIES=='SR') #one record of stingray with no other data, assumed to be typo
 
 #change awkward names
 colnames(Tagging)[match(c("SEX","SPECIES","FL"),names(Tagging))]=
@@ -288,7 +366,9 @@ Tagging=left_join(Tagging,Species.Codes,by="Species")
 
 
 #Remove unknown species
-Tagging=subset(Tagging,!Species=="")
+Tagging=Tagging%>%
+          filter(!Species=="")%>%
+          filter(!COMMON_NAME%in%c("","Unknown"))
 
 
 #Fix some dates
@@ -363,7 +443,7 @@ Tagging$Day.rel=with(Tagging,ifelse(Yr.rel==1900,NA,Day.rel))
 Tagging$Mn.rel=with(Tagging,ifelse(Yr.rel==1900,NA,Mn.rel))
 Tagging$Yr.rel=with(Tagging,ifelse(Yr.rel==1900,NA,Yr.rel))
 
-Tagging$Yr.rel=with(Tagging,ifelse(Yr.rel==2020,NA,Yr.rel))
+
 
 #Fix some locations
 Tagging$Lat.rels=with(Tagging,ifelse(SHEET_NO=="J00746",-22.8,
@@ -377,15 +457,6 @@ Tagging$Long.rels=with(Tagging,ifelse(SHEET_NO=="N00558",113.21,
                     ifelse(SHEET_NO=="R00617",113.598,
                     ifelse(SHEET_NO=="R00863",112.787,
                     ifelse(SHEET_NO=="R00833",113.99,Long.rels))))))))
-
-#Add sampling method
-Gear=subset(Gear,SHEET_NO%in%unique(Tagging$SHEET_NO))
-Gear=Gear[!duplicated(Gear$SHEET_NO),]
-Tagging=merge(Tagging,Gear,by="SHEET_NO",all.x=T)
-names(Tagging)[match("Method",names(Tagging))]="REL_METHD"
-
-
-
 
 
 #Check release and recapture size within species range                
