@@ -4,7 +4,7 @@
 library(RODBC)    		#library for importing excel data
 library(lubridate)
 library(dplyr)
-
+library(Hmisc)
 
 # DATA SECTION -----------------------------------------------------------------------
 
@@ -156,9 +156,12 @@ Tagging=Tagging%>%
                  Recaptured="Captured?")%>%
           mutate(CONDITION=ifelse(CONDITION=="?",NA,CONDITION),
                  Tag.type=case_when(!is.na(Tag.no)|!is.na(Tag.no2)~'conventional',
-                                    is.na(Tag.no) & !is.na(DARTTAGNO)~'conventional.dart',
-                                    is.na(Tag.no) & !is.na(ATAG.NO)~'acoustic',
+                                    grepl(paste(c("d","D"), collapse="|"),Tag.no)~'conventional.dart',
+                                    grepl(paste(c("a","A"), collapse="|"),Tag.no)~'acoustic',
                                     TRUE~'unknown'),
+                 Tag.type=case_when(grepl(paste(c("d","D"), collapse="|"),Tag.no)~'conventional.dart',
+                                    grepl(paste(c("a","A"), collapse="|"),Tag.no)~'acoustic',
+                                    TRUE~Tag.type),
                  Tag.no=ifelse(is.na(Tag.no) & !is.na(Tag.no2),Tag.no2,
                         ifelse(is.na(Tag.no) & !is.na(DARTTAGNO),DARTTAGNO,
                         ifelse(is.na(Tag.no) & !is.na(ATAG.NO),ATAG.NO,
@@ -181,10 +184,13 @@ Boat_bio=Boat_bio%>%
             dplyr::select(SHEET_NO,SPECIES,FL,TL,Tag.no,DARTTAGNO,ATAG.NO,FINTAG.2,
                           CONDITION_Boat_bio,SEX_Boat_bio)%>%
             mutate(Tag.type2=case_when(!is.na(Tag.no)|!is.na(FINTAG.2)~'conventional',
-                                      is.na(Tag.no) & !is.na(DARTTAGNO)~'conventional.dart',
-                                      is.na(Tag.no) & !is.na(ATAG.NO)~'acoustic',
-                                      TRUE~'unknown'),
-                    Tag.no=ifelse(is.na(Tag.no) & !is.na(DARTTAGNO),paste("D",DARTTAGNO,sep=""),
+                                       grepl(paste(c("d","D"), collapse="|"),Tag.no)~'conventional.dart',
+                                       grepl(paste(c("a","A"), collapse="|"),Tag.no)~'acoustic',
+                                       TRUE~'unknown'),
+                   Tag.type2=case_when(grepl(paste(c("d","D"), collapse="|"),Tag.no)~'conventional.dart',
+                                       grepl(paste(c("a","A"), collapse="|"),Tag.no)~'acoustic',
+                                       TRUE~Tag.type2),
+                   Tag.no=ifelse(is.na(Tag.no) & !is.na(DARTTAGNO),paste("D",DARTTAGNO,sep=""),
                                 ifelse(is.na(Tag.no) & !is.na(ATAG.NO),paste("A",ATAG.NO,sep=""),
                                 Tag.no)))%>%
             filter(!is.na(Tag.no))%>%
@@ -288,23 +294,30 @@ na.these.cols=match(c("Lat.rec","Long.rec"),names(Tagging))
 Tagging[these.nonsense.rec,na.these.cols]=NA  #set to NA the recapture location
 
 Tagging=Tagging%>%
-            mutate(Recaptured=ifelse(Recaptured=="YES" & is.na(CAP_FL)
-                                     & is.na(Day.rec) & is.na(Mn.rec) & is.na(Yr.rec)
-                                     & is.na(Lat.rec) & is.na(Long.rec),"NO",Recaptured),
+            mutate(CAP_FL=ifelse(CAP_FL<20,NA,CAP_FL),
+                   dummy.CAP_FL=ifelse(is.na(CAP_FL),1,CAP_FL),
+                   dummy.Day.rec=ifelse(is.na(Day.rec),1,Day.rec),
+                   dummy.Mn.rec=ifelse(is.na(Mn.rec),1,Mn.rec),
+                   dummy.Yr.rec=ifelse(is.na(Yr.rec),1,Yr.rec),
+                   dummy.Lat.rec=ifelse(is.na(Lat.rec),1,abs(Lat.rec)),
+                   dummy.Long.rec=ifelse(is.na(Long.rec),1,Long.rec),
+                   dummy=dummy.CAP_FL*dummy.Day.rec*dummy.Mn.rec*dummy.Yr.rec*dummy.Lat.rec*dummy.Long.rec,
+                   Recaptured=ifelse(Recaptured=="YES" & dummy<=1,"NO",Recaptured),
                    Lat.rec=ifelse(Recaptured=="NO",NA,Lat.rec),
                    Long.rec=ifelse(Recaptured=="NO",NA,Long.rec),
                    Long.rels=ifelse(SHEET_NO=='R00863',112.7868,
-                             ifelse(SHEET_NO=='Q00241',122.6462,
-                             ifelse(SHEET_NO=='Q00654',118.4068,
-                                    Long.rels))),
+                                    ifelse(SHEET_NO=='Q00241',122.6462,
+                                           ifelse(SHEET_NO=='Q00654',118.4068,
+                                                  Long.rels))),
                    Lat.rels=ifelse(SHEET_NO=='M00087',-23.06767,
-                            ifelse(SHEET_NO=='Q00241',-33.89615,
-                            ifelse(SHEET_NO=='Q00654',-34.82442,
-                                  Lat.rels))))
+                                   ifelse(SHEET_NO=='Q00241',-33.89615,
+                                          ifelse(SHEET_NO=='Q00654',-34.82442,
+                                                 Lat.rels))),
+                   Recaptured=capitalize(tolower(Recaptured)))%>%
+            dplyr::select(-c(dummy,dummy.CAP_FL,dummy.Day.rec,dummy.Mn.rec,dummy.Yr.rec,dummy.Lat.rec,dummy.Long.rec))
 
 #fix species names
 #Tagging$SPECIES=with(Tagging,ifelse(SPECIES%in%c("WC","WD","WS","WW"),"WB",SPECIES)) #Identification of wobbegongs was found to be unreliable so set all wobbies to general
-
 Tagging$SPECIES=with(Tagging,ifelse(SPECIES=="LP","ZE",
                              ifelse(SPECIES=="DF","SD",
                                     SPECIES)))   #LP is zebra shark; DF is spurdog
@@ -324,20 +337,24 @@ Tagging$Sex=ifelse(Tagging$Sex%in%c("F","f"),"F",ifelse(Tagging$Sex%in%c("m","M"
 #Create usefull variables
 
 #areas
-eachArea=c("JASDGDLF.zone2","JASDGDLF.zone1","WCDGDLF","closed","WANCSF","JANSF")
-Tagging$Areas=with(Tagging,ifelse(Lat.rels<=(-26) & Lat.rels>=(-33) & Long.rels <=116,eachArea[3],
-                                  ifelse(Lat.rels<(-33) & Lat.rels>=(-41) & Long.rels <=116.5,eachArea[2],
-                                         ifelse(Lat.rels<(-31) & Lat.rels>=(-41) & Long.rels >116.5,eachArea[1],
-                                                ifelse(Long.rels>=114 & Long.rels<=123.75 & Lat.rels >=(-18),eachArea[5],
-                                                       ifelse(Long.rels>123.75 & Lat.rels >=(-18),eachArea[6],eachArea[4]))))))
+eachArea=c("JASDGDLF.zone2","JASDGDLF.zone1","WCDGDLF","Closed","WANCSF","JANSF")
+Tagging$Areas=with(Tagging,ifelse(Lat.rels<=(-26.5) & Lat.rels>=(-33) & Long.rels <=116,eachArea[3],
+                    ifelse(Lat.rels<(-33) & Lat.rels>=(-41) & Long.rels <=116.5,eachArea[2],
+                    ifelse(Lat.rels<(-31) & Lat.rels>=(-41) & Long.rels >116.5,eachArea[1],
+                    ifelse(Long.rels>=114 & Long.rels<=123.75 & Lat.rels >=(-23),eachArea[5],
+                    ifelse(Long.rels>123.75 & Lat.rels >=(-18),eachArea[6],
+                    ifelse(Lat.rels>=(-26.5) & Long.rels <=114,eachArea[4],       
+                    NA)))))))
 Tagging$Areas=with(Tagging,ifelse(Lat.rels<=(-29) & Long.rels >129,"SA",Areas))
 
 
-Tagging$Areas.rec=with(Tagging,ifelse(Lat.rec<=(-26) & Lat.rec>=(-33) & Long.rec <=116,eachArea[3],
+Tagging$Areas.rec=with(Tagging,ifelse(Lat.rec<=(-26.5) & Lat.rec>=(-33) & Long.rec <=116,eachArea[3],
                       ifelse(Lat.rec<(-33) & Lat.rec>=(-41) & Long.rec <=116.5,eachArea[2],
                       ifelse(Lat.rec<(-31) & Lat.rec>=(-41) & Long.rec >116.5,eachArea[1],
-                      ifelse(Long.rec>=114 & Long.rec<=123.75 & Lat.rec >=(-18),eachArea[5],
-                      ifelse(Long.rec>123.75 & Lat.rec >=(-18),eachArea[6],eachArea[4]))))))
+                      ifelse(Long.rec>=114 & Long.rec<=123.75 & Lat.rec >=(-23),eachArea[5],
+                      ifelse(Long.rec>123.75 & Lat.rec >=(-18),eachArea[6],
+                      ifelse(Lat.rec>=(-26.5) & Long.rec <=114,eachArea[4],       
+                      NA)))))))
 Tagging$Areas.rec=with(Tagging,ifelse(Lat.rec<=(-29) & Long.rec >129,"SA",Areas.rec))
 
 
@@ -372,20 +389,20 @@ Tagging=Tagging%>%
 
 
 #Fix some dates
-Tagging$Day.rec=with(Tagging,ifelse(FINTAGNO=="A154A",10,Day.rec))
-Tagging$Mn.rec=with(Tagging,ifelse(FINTAGNO=="A154A",3,Mn.rec))
-Tagging$Yr.rec=with(Tagging,ifelse(FINTAGNO=="A154A",2013,Yr.rec))
+Tagging$Day.rec=with(Tagging,ifelse(Tag.no=="a154a",10,Day.rec))
+Tagging$Mn.rec=with(Tagging,ifelse(Tag.no=="a154a",3,Mn.rec))
+Tagging$Yr.rec=with(Tagging,ifelse(Tag.no=="a154a",2013,Yr.rec))
 
-Tagging$Day.rec=with(Tagging,ifelse(FINTAGNO%in%c("884","3326","3327"),NA,Day.rec))
-Tagging$Mn.rec=with(Tagging,ifelse(FINTAGNO%in%c("884","3326","3327"),NA,Mn.rec))
-Tagging$Yr.rec=with(Tagging,ifelse(FINTAGNO%in%c("884","3326","3327"),NA,Yr.rec))
+Tagging$Day.rec=with(Tagging,ifelse(Tag.no%in%c("884","3326","3327"),NA,Day.rec))
+Tagging$Mn.rec=with(Tagging,ifelse(Tag.no%in%c("884","3326","3327"),NA,Mn.rec))
+Tagging$Yr.rec=with(Tagging,ifelse(Tag.no%in%c("884","3326","3327"),NA,Yr.rec))
 
 
-ID=which(Tagging$FINTAGNO=="239" & Tagging$Yr.rel==1900)
+ID=which(Tagging$Yr.rel==1900)
 if(length(ID)>0) Tagging=Tagging[-ID,]
-Tagging$Day.rec=with(Tagging,ifelse(FINTAGNO%in%c("239"),9,Day.rec))
-Tagging$Mn.rec=with(Tagging,ifelse(FINTAGNO%in%c("239"),12,Mn.rec))
-Tagging$Yr.rec=with(Tagging,ifelse(FINTAGNO%in%c("239"),1997,Yr.rec))
+Tagging$Day.rec=with(Tagging,ifelse(Tag.no%in%c("239"),9,Day.rec))
+Tagging$Mn.rec=with(Tagging,ifelse(Tag.no%in%c("239"),12,Mn.rec))
+Tagging$Yr.rec=with(Tagging,ifelse(Tag.no%in%c("239"),1997,Yr.rec))
 
 
 # #Checks
