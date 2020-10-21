@@ -158,34 +158,32 @@ if(sum(ind)>0)
     Tagging=rbind(Tagging,dummy)
   }
 
-#Fix Tag.no if incomplete
-Tagging$Tag.no=as.character(Tagging$FINTAGNO)
-Tagging$ATAG.NO=Tagging$"ATAG NO"
-Tagging$RELEASE.DATE=Tagging$"RELEASE DATE"
-
-
-Tagging %>% mutate(across(where(is.factor), as.character)) -> Tagging  #convert all factors to character
+#convert all factors to character
+Tagging %>% mutate(across(where(is.factor), as.character)) -> Tagging  
 Boat_bio %>% mutate(across(where(is.factor), as.character)) -> Boat_bio
 Gummy %>% mutate(across(where(is.factor), as.character)) -> Gummy
 Species.Codes %>% mutate(across(where(is.factor), as.character)) -> Species.Codes
 
+#Fix Tag.no if incomplete
 Tagging=Tagging%>%
-          rename(Tag.no2='Tag no',
-                 Recaptured="Captured?")%>%
-          mutate(CONDITION=ifelse(CONDITION=="?",NA,CONDITION),
-                 Tag.type=case_when(!is.na(Tag.no)|!is.na(Tag.no2)~'conventional',
-                                    grepl(paste(c("d","D"), collapse="|"),Tag.no)~'conventional.dart',
-                                    grepl(paste(c("a","A"), collapse="|"),Tag.no)~'acoustic',
-                                    TRUE~'unknown'),
-                 Tag.type=case_when(grepl(paste(c("d","D"), collapse="|"),Tag.no)~'conventional.dart',
-                                    grepl(paste(c("a","A"), collapse="|"),Tag.no)~'acoustic',
-                                    TRUE~Tag.type),
-                 Tag.no=ifelse(is.na(Tag.no) & !is.na(Tag.no2),Tag.no2,
-                        ifelse(is.na(Tag.no) & !is.na(DARTTAGNO),DARTTAGNO,
-                        ifelse(is.na(Tag.no) & !is.na(ATAG.NO),ATAG.NO,
-                        Tag.no))))%>%
-          dplyr::select(-Tag.no2)%>%
-          mutate(Tag.no=tolower(Tag.no))
+  rename(Tag.no2='Tag no',
+         ATAG.NO="ATAG NO",
+         RELEASE.DATE="RELEASE DATE")%>%
+  mutate(Tag.no=as.character(FINTAGNO))
+
+#Tag type
+Tagging=Tagging%>%
+        rename(Recaptured="Captured?")%>%
+        mutate(CONDITION=ifelse(CONDITION=="?",NA,CONDITION),
+               Tag.type=case_when(!is.na(ATAG.NO)~'acoustic',
+                                  !is.na(DARTTAGNO) & is.na(Tag.no)~'conventional.dart',
+                                  TRUE~'conventional'))%>%
+        mutate(Tag.no=ifelse(is.na(Tag.no) & !is.na(Tag.no2),Tag.no2,
+                      ifelse(is.na(Tag.no) & !is.na(DARTTAGNO),DARTTAGNO,
+                      ifelse(is.na(Tag.no) & !is.na(ATAG.NO),ATAG.NO,
+                      Tag.no))),
+                Tag.no=tolower(Tag.no))%>%
+      dplyr::select(-Tag.no2)
 
 
 #release and recapture methods 
@@ -205,7 +203,6 @@ Tagging=Tagging%>%
                               TRUE~"Other"))
 
 
-
 #Add TL to species where TL is measured but not FL and any tagging event not in Tagging
 #note: The Tag data table in Shark.mdb got some what corrupted and is not capturing all tagging event post 2016
 #      Hence, combine with Boat bio.....
@@ -219,13 +216,10 @@ Boat_bio=Boat_bio%>%
                    SEX_Boat_bio=SEX)%>%
             dplyr::select(SHEET_NO,SPECIES,FL,TL,Tag.no,DARTTAGNO,ATAG.NO,FINTAG.2,
                           CONDITION_Boat_bio,SEX_Boat_bio)%>%
-            mutate(Tag.type2=case_when(!is.na(Tag.no)|!is.na(FINTAG.2)~'conventional',
-                                       grepl(paste(c("d","D"), collapse="|"),Tag.no)~'conventional.dart',
-                                       grepl(paste(c("a","A"), collapse="|"),Tag.no)~'acoustic',
-                                       TRUE~'unknown'),
-                   Tag.type2=case_when(grepl(paste(c("d","D"), collapse="|"),Tag.no)~'conventional.dart',
-                                       grepl(paste(c("a","A"), collapse="|"),Tag.no)~'acoustic',
-                                       TRUE~Tag.type2),
+            mutate(DARTTAGNO=ifelse(DARTTAGNO<100,NA,DARTTAGNO),
+                   Tag.type2=case_when(!is.na(ATAG.NO)~'acoustic',
+                                       !is.na(DARTTAGNO) & is.na(Tag.no)~'conventional.dart',
+                                       TRUE~'conventional'),
                    Tag.no=ifelse(is.na(Tag.no) & !is.na(DARTTAGNO),paste("D",DARTTAGNO,sep=""),
                                 ifelse(is.na(Tag.no) & !is.na(ATAG.NO),paste("A",ATAG.NO,sep=""),
                                 Tag.no)))%>%
@@ -282,7 +276,8 @@ Tagging=Tagging%>%
 
 Tagging$CAP_FL=as.numeric(Tagging$CAP_FL)
 
-these.vars=c("SHEET_NO","SPECIES","FINTAGNO","Tag.no","Tag.type","FL","SEX","CONDITION","REL_LATD","REL_LATM",
+these.vars=c("SHEET_NO","SPECIES","FINTAGNO","ATAG.NO","DARTTAGNO","Tag.no","Tag.type","FL","SEX",
+             "CONDITION","REL_LATD","REL_LATM",
              "REL_LNGD","REL_LNGM","Day.rel","Mn.rel","Yr.rel",
              "CAPT_METHD","Recaptured","CAP_LATD","CAP_LATM","CAP_LNGD","CAP_LNGM","CAP_FL",
              "Day.rec","Mn.rec","Yr.rec",
