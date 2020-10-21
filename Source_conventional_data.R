@@ -315,6 +315,7 @@ Tagging=Tagging[,-match(Drop.this,names(Tagging))]
 
 
 #add gummy tagging data
+Gummy$DARTTAGNO=NA
 Tagging=rbind(Tagging,Gummy[,match(names(Tagging),names(Gummy))])
 
 
