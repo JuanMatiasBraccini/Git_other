@@ -20,6 +20,12 @@ Boat_bio=sqlFetch(channel, "Boat_bio", colnames = F)
 Flinders_hdr=sqlFetch(channel, "FLINDERS HDR", colnames = F) 
 close(channel)  
 
+#standardise sheetNo
+Tagging$SHEET_NO=tolower(Tagging$SHEET_NO)
+Boat_hdr$SHEET_NO=tolower(Boat_hdr$SHEET_NO)
+Boat_bio$SHEET_NO=tolower(Boat_bio$SHEET_NO)
+Flinders_hdr$SHEET_NO=tolower(Flinders_hdr$SHEET_NO)
+
 #remove duplicated tags
 Tagging=Tagging[order(Tagging$"Tag no",Tagging$"RELEASE DATE"),]
 Tagging=Tagging[!duplicated(Tagging$"Tag no"),]
@@ -109,6 +115,18 @@ Gummy$BOTDEPTH=NA
 Gummy$BOAT=NA
 
 
+#release and recapture methods 
+Gummy=Gummy%>%
+  mutate(Rec.method=ifelse(CAPT_METHD=="GN","Commercial gillnet",
+                    ifelse(CAPT_METHD=="LL","Commercial longline",
+                    ifelse(!CAPT_METHD%in%c("LL","GN"),"Other",
+                    NA))),
+         Rel.method=ifelse(GrRl==2,"Commercial gillnet",
+                    ifelse(GrRl==1,"Commercial longline",
+                    ifelse(!GrRl%in%c(1,2),"Other",
+                    NA))))
+
+
 #add missing records
 ind=which(is.na(match(Tagging.check$"FINTAG NO",Tagging$FINTAGNO))==T)
 if(sum(ind)>0)
@@ -168,6 +186,24 @@ Tagging=Tagging%>%
                         Tag.no))))%>%
           dplyr::select(-Tag.no2)%>%
           mutate(Tag.no=tolower(Tag.no))
+
+
+#release and recapture methods 
+Res.ves=c('HAM','HOU','NAT','RV BREAKSEA','RV Gannet','RV GANNET','RV SNIPE 2')
+Tagging=Tagging%>%
+  mutate(CAPTVESS=tolower(CAPTVESS),
+         Rec.method=case_when(CAPT_METHD=='LL' & CAPTVESS%in%c('nat','naturaliste') ~"Research longline",
+                              CAPT_METHD=='LL' & !CAPTVESS%in%c('nat','naturaliste') ~"Commercial longline",
+                              CAPT_METHD=='GN' ~"Commercial gillnet",
+                              !CAPT_METHD%in%c("LL","GN") ~"Other"),
+         Rec.method=ifelse(is.na(Recaptured),NA,Rec.method))%>%
+  left_join(Boat_hdr%>%dplyr::select(SHEET_NO,Method,BOAT),by='SHEET_NO')%>%
+  mutate(Rel.method=case_when(Method=='LL' & !BOAT%in%Res.ves~"Commercial longline",
+                              Method=='LL' &  BOAT%in%Res.ves~"Research longline",
+                              Method=='GN' &  BOAT%in%Res.ves~"Research gillnet",
+                              Method=='GN' & !BOAT%in%Res.ves~"Commercial gillnet",
+                              TRUE~"Other"))
+
 
 
 #Add TL to species where TL is measured but not FL and any tagging event not in Tagging
@@ -251,7 +287,8 @@ these.vars=c("SHEET_NO","SPECIES","FINTAGNO","Tag.no","Tag.type","FL","SEX","CON
              "CAPT_METHD","Recaptured","CAP_LATD","CAP_LATM","CAP_LNGD","CAP_LNGM","CAP_FL",
              "Day.rec","Mn.rec","Yr.rec",
              'RELLATDECDEG','RELLNGDECDEG','RECLATDECDEG','RECLNGDECDEG',
-             'Method_hdr','BOTDEPTH_hdr','BOAT_hdr','MID.LAT_hdr','MID.LONG_hdr')
+             'Method_hdr','BOTDEPTH_hdr','BOAT_hdr','MID.LAT_hdr','MID.LONG_hdr',
+             'Rec.method','Rel.method')
 Tagging=Tagging[,match(these.vars,names(Tagging))]%>%
               mutate(Recaptured=ifelse(Recaptured%in%c("Y","y"),"YES","NO"))
 
