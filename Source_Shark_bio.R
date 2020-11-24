@@ -5,7 +5,10 @@ library(lunar)   #moon phases
 library(lubridate)
 library(tidyverse)
 options(stringsAsFactors = FALSE)
-#DATA SECTION
+
+
+# DATA SECTION -----------------------------------------------------------------------
+
 
 #Sharks data base
 setwd("U:/Shark")  # working directory
@@ -19,8 +22,7 @@ Boat_hdr=sqlFetch(channel, "Boat_hdr", colnames = F)
 close(channel)
 
 #Species names
-if(User=="Matias") SPECIES.names=read.csv("C:/Matias/Data/Species.code.csv")
-if(User=="Dany") SPECIES.names=read.csv("//fish.wa.gov.au/data/Users/ddw/Shark/R/Projects/Naturaliste_longline/Source codes/Species.code.csv")
+SPECIES.names=read.csv("C:/Matias/Data/Species.code.csv")
 
 
 #Species historically recorded in Boat header comments
@@ -32,8 +34,8 @@ TL_FL=read.csv("C:/Matias/Data/Naturaliste/FL_to_TL.csv",stringsAsFactors=F)
 
 
 
-#PROCEDURE SECTION
 
+# PROCEDURE SECTION -----------------------------------------------------------------------
               
 
 #Fix soak time 
@@ -240,7 +242,7 @@ DATA=DATA[,-match(c("a.intercept","b.slope"),names(DATA))]
 
 
 #Create Biological data dataframe
-keep.biol=c("SHEET_NO","SPECIES","date","TL","FL","SEX","RELEASE CONDITION","UMBIL_SCAR", "NO_DISCARDS",
+keep.biol=c("SHEET_NO","SPECIES","date","TL","FL","PL","SEX","RELEASE CONDITION","UMBIL_SCAR", "NO_DISCARDS",
             "CLASPLENTH","CLASP_CALC","GON_STAGE","RUN_SPERM","MAXOVRYDIA","NO_YOLKOVA","UTERINESTG","NO_EMBRYOS",
             "NO_UNDEVELOPED","EMBLEN_1","EMBLEN_2","EMBLEN_3","EMBLEN_4","EMBLEN_5","EMBLEN_6","EMBLEN_7","EMBLEN_8",
             "EMBLEN_9","EMBLEN_10","EMBLEN_11","EMBLEN_12","STMCH_FULL","STMCH_CONT",
@@ -284,7 +286,7 @@ DATA$END2LATD=-DATA$END2LATD
 
 #Add moon phase
 #note: 0 and 100 are full moon, 50 is new moon, 25 last quarter and 75 first quater
-if(User=="Matias")  DATA$Moon=lunar.phase(DATA$date,name = T)
+DATA$Moon=lunar.phase(DATA$date,name = T)
 
 #Remove NA species
 DATA=subset(DATA,!is.na(SPECIES))
@@ -445,8 +447,8 @@ Ecos.nams=c("SHEET_NO"  , "LINE_NO" , "SPECIES" , "TL" , "SEX"   ,
             "BOTDEPTH"  ,  "MESH_SIZE" ,  "MESH_DROP" , "NET_LENGTH" , "END1LATD"  ,     
             "END1LATM"  ,"END1LNGD"  ,  "END1LNGM" ,"END2LATD" ,  "END2LATM"  ,     
             "END2LNGD" , "END2LNGM" , "N.hooks" ,"gillnet effort", "Mid.Lat",        
-            "Mid.Long"  , "Longline effort", "Method"   ,  "FL"  ,  "date"    ,       
-            "Day"   , "Set.time" , "Haul.time" , "Moon"    , "Number" ,        
+            "Mid.Long"  , "Longline effort", "Method"   ,  "FL","PL","Moon"  ,  "date"    ,       
+            "Day"   , "Set.time" , "Haul.time" , "Number" ,        
             "Lat.round" , "Long.round" ,"zone","COMMENTS.hdr" )
 
 DATA.ecosystems=DATA[,match(Ecos.nams,names(DATA))]
@@ -455,6 +457,7 @@ Chnge.this=c("SOAK.TIME","gillnet effort","Longline effort")
 To.this=  c("SOAK_TIME","gillnet.effort","Longline.effort")
 names(DATA.ecosystems)[match(Chnge.this,names(DATA.ecosystems))]=To.this
 
+DATA.ecosystems=merge(DATA.ecosystems,SPECIES.names,by.x="SPECIES",by.y="Species",all.x=T)
 
 #Fix reproductive biology vars    UTERINESTG
 DATA.bio$CLASP_CALC=with(DATA.bio,ifelse(CLASP_CALC=="y","Y",ifelse(CLASP_CALC=='n','N',
@@ -496,7 +499,7 @@ Shovel.prop.n=DATA.bio%>%
               group_by(Group) %>%
               summarise (n = n()) %>%
               mutate(freq = n / sum(n))%>%
-              select(-n)%>%
+              dplyr::select(-n)%>%
               data.frame
 
 Shovel.prop.s=DATA.bio%>%
@@ -506,8 +509,43 @@ Shovel.prop.s=DATA.bio%>%
                 group_by(Group) %>%
                 summarise (n = n()) %>%
                 mutate(freq = n / sum(n))%>%
-                select(-n)%>%
+                dplyr::select(-n)%>%
                 data.frame
+
+
+# Change PL to Disc width for stingrays
+Stingrays=35000:40000
+DATA=DATA%>%
+  mutate(COMMON_NAME=case_when(SPECIES=='ER' & Mid.Lat<=(-31)~'Southern eagle ray',
+                               TRUE~COMMON_NAME),
+         SCIENTIFIC_NAME=case_when(SPECIES=='ER' & Mid.Lat<=(-31)~'Myliobatis tenuicaudatus',
+                                   TRUE~SCIENTIFIC_NAME),
+         Disc.width=ifelse(CAES_Code%in%Stingrays & !is.na(PL),PL,
+                           ifelse(CAES_Code%in%Stingrays & is.na(PL) & grepl("PA",SHEET_NO),TL,NA)),
+         CAES_Code=ifelse(SPECIES=='ER' & Mid.Lat<=(-31),39001,CAES_Code))
+
+DATA.bio=DATA.bio%>%
+  mutate(COMMON_NAME=case_when(SPECIES=='ER' & Mid.Lat<=(-31)~'Southern eagle ray',
+                               TRUE~COMMON_NAME),
+         SCIENTIFIC_NAME=case_when(SPECIES=='ER' & Mid.Lat<=(-31)~'Myliobatis tenuicaudatus',
+                                   TRUE~SCIENTIFIC_NAME),
+         Disc.width=ifelse(CAES_Code%in%Stingrays & !is.na(PL),PL,
+                           ifelse(CAES_Code%in%Stingrays & is.na(PL) & grepl("PA",SHEET_NO),TL,NA)),
+         CAES_Code=ifelse(SPECIES=='ER' & Mid.Lat<=(-31),39001,CAES_Code))
+
+
+DATA.ecosystems=DATA.ecosystems%>%
+  mutate(COMMON_NAME=case_when(SPECIES=='ER' & Mid.Lat<=(-31)~'Southern eagle ray',
+                               TRUE~COMMON_NAME),
+         SCIENTIFIC_NAME=case_when(SPECIES=='ER' & Mid.Lat<=(-31)~'Myliobatis tenuicaudatus',
+                                   TRUE~SCIENTIFIC_NAME),
+         Disc.width=ifelse(CAES_Code%in%Stingrays & !is.na(PL),PL,
+                           ifelse(CAES_Code%in%Stingrays & is.na(PL) & grepl("PA",SHEET_NO),TL,NA)),
+         CAES_Code=ifelse(SPECIES=='ER' & Mid.Lat<=(-31),39001,CAES_Code))
+
+
+
+# EXPORT SECTION -----------------------------------------------------------------------
 
 write.csv(Shovel.prop.n,'C:/Matias/Data/Catch and Effort/prop_banjo_wedge_north.csv',row.names = F)
 write.csv(Shovel.prop.s,'C:/Matias/Data/Catch and Effort/prop_banjo_wedge_south.csv',row.names = F)
