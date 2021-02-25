@@ -240,6 +240,14 @@ DATA$FL=with(DATA,ifelse(!is.na(FL) & !is.na(TL) & FL>TL,NA,FL))
 DATA$FL=with(DATA,ifelse(is.na(FL)&!is.na(TL),(TL-a.intercept)/b.slope,FL))
 DATA=DATA[,-match(c("a.intercept","b.slope"),names(DATA))]
 
+#Amend species code to family for species outside reported distribution  
+DATA$dummys=DATA$`MID LAT`
+DATA=DATA%>%
+  mutate(SPECIES=case_when(SPECIES=='BC' & dummys>25 ~'CA',
+                           SPECIES=='CW' & dummys>24.5 ~'XX',
+                           SPECIES=='SS'  ~'AV',    
+                           TRUE~SPECIES))%>%
+  dplyr::select(-dummys)
 
 #Create Biological data dataframe
 keep.biol=c("SHEET_NO","SPECIES","date","TL","FL","PL","SEX","RELEASE CONDITION","UMBIL_SCAR", "NO_DISCARDS",
@@ -252,6 +260,16 @@ DATA.bio=DATA[,match(keep.biol,names(DATA))]
 #Merge scalefish and shark data
 DATA$Numbers=1
 
+#Amend nonsense species
+Scalefish$dummys=Scalefish$`MID LAT`
+Scalefish=Scalefish%>%
+  mutate(SPECIES=case_when(SPECIES=='RB.T' & dummys>25 ~'XX.T',
+                           TRUE~SPECIES))%>%
+  dplyr::select(-dummys)
+  
+  
+  
+  
 Scalefish$VERT_SAMPL=NA
 Scalefish$SEX=as.character(Scalefish$SEX)
 Scalefish$SEX=with(Scalefish,ifelse(SEX=="f","F",ifelse(SEX=="m","M",SEX)))
@@ -272,6 +290,9 @@ DATA=DATA[,match(names(Scalefish),names(DATA))]
 #Combine shark and scalefish datasets
 DATA$TYPE="Elasmo"
 Scalefish$TYPE="Scalefish"
+
+DATA$SPECIES=with(DATA,ifelse(SPECIES=="JE","JE.T",SPECIES))
+DATA$TYPE=with(DATA,ifelse(SPECIES=="JE.T","Scalefish",TYPE))
 
 DATA=rbind(DATA,Scalefish)  
 DATA$TYPE=with(DATA,ifelse(grepl(".T",SPECIES),'Scalefish',TYPE))
