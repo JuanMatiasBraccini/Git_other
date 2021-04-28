@@ -11,8 +11,7 @@ options(stringsAsFactors = FALSE)
 
 
 #Sharks data base
-setwd("U:/Shark")  # working directory
-#setwd('C:/Matias')  #while working from home
+setwd("U:/Shark") 
 channel <- odbcConnectAccess2007("Sharks v20200323.mdb")  #new databased updated by Vero
 #channel <- odbcConnectAccess2007("Sharks.mdb") 
 
@@ -21,16 +20,20 @@ Scalefish=sqlFetch(channel, "Scalefish", colnames = F)
 Boat_hdr=sqlFetch(channel, "Boat_hdr", colnames = F)   
 close(channel)
 
+if(!exists('handl_OneDrive')) handl_OneDrive=function(x)paste('C:/Users/myb/OneDrive - Department of Primary Industries and Regional Development/Matias',x,sep='/')
+
 #Species names
-SPECIES.names=read.csv("C:/Matias/Data/Species.code.csv")
+SPECIES.names=read.csv(handl_OneDrive("Data/Species.code.csv"))
 
 
 #Species historically recorded in Boat header comments
-Boat_bio_header_sp=read.csv("C:/Matias/Data/Shark_bio/Missing_species_from_comments.csv",stringsAsFactors=F)
+Boat_bio_header_sp=read.csv(handl_OneDrive("Data/Shark_bio/Missing_species_from_comments.csv"),
+                            stringsAsFactors=F)
 
 
 #TL-FL coefficients
-TL_FL=read.csv("C:/Matias/Data/Naturaliste/FL_to_TL.csv",stringsAsFactors=F)
+TL_FL=read.csv(handl_OneDrive("Data/Naturaliste/FL_to_TL.csv"),
+               stringsAsFactors=F)
 
 
 
@@ -565,15 +568,16 @@ DATA.ecosystems=DATA.ecosystems%>%
          CAES_Code=ifelse(SPECIES=='ER' & Mid.Lat<=(-31),39001,CAES_Code))
 
 
+DATA$SPECIES=with(DATA,ifelse(SHEET_NO=="PA0031" & SPECIES=="DW.T","BW",SPECIES)) #typo, ammended by Jack Parker
 
 # EXPORT SECTION -----------------------------------------------------------------------
 
-write.csv(Shovel.prop.n,'C:/Matias/Data/Catch and Effort/prop_banjo_wedge_north.csv',row.names = F)
-write.csv(Shovel.prop.s,'C:/Matias/Data/Catch and Effort/prop_banjo_wedge_south.csv',row.names = F)
+write.csv(Shovel.prop.n,handl_OneDrive("Data/Catch and Effort/prop_banjo_wedge_north.csv"),row.names = F)
+write.csv(Shovel.prop.s,handl_OneDrive("Data/Catch and Effort/prop_banjo_wedge_south.csv"),row.names = F)
 
 
 #flush console
 all.objs=ls()
-all.objs=subset(all.objs,!all.objs%in%c('DATA','DATA.bio','DATA.ecosystems'))
+all.objs=subset(all.objs,!all.objs%in%c('DATA','DATA.bio','DATA.ecosystems','handl_OneDrive'))
 
 rm(list=all.objs)

@@ -30,10 +30,12 @@ Flinders_hdr$SHEET_NO=tolower(Flinders_hdr$SHEET_NO)
 Tagging=Tagging[order(Tagging$"Tag no",Tagging$"RELEASE DATE"),]
 Tagging=Tagging[!duplicated(Tagging$"Tag no"),]
 
-setwd("C:/Matias/Data/Tagging/Conventional_tagging")
+handl_OneDrive=function(x)paste('C:/Users/myb/OneDrive - Department of Primary Industries and Regional Development/Matias',x,sep='/')
+
+setwd(handl_OneDrive("Data/Tagging/Conventional_tagging"))
 
 
-Tagging.check=read.csv("C:/Matias/Data/Tagging/Conventional_tagging/Boat_bio tag releases.csv")
+Tagging.check=read.csv(handl_OneDrive("Data/Tagging/Conventional_tagging/Boat_bio tag releases.csv"))
 
 #Gummy shark
 GummyWA=read.csv("Terry_data/InWA.csv")
@@ -41,8 +43,8 @@ GummySA=read.csv("Terry_data/OutWA.intoWA.csv")
 
 
 #Species codes 
-Species.Codes=read.csv("C:/Matias/Data/Species.code.csv")     
-Species.Size.Range=read.csv("C:/Matias/Data/Species.Size.Range.csv")      
+Species.Codes=read.csv(handl_OneDrive("Data/Species.code.csv"))     
+Species.Size.Range=read.csv(handl_OneDrive("Data/Species.Size.Range.csv"))      
 
 
 

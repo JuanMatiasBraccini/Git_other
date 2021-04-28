@@ -1,6 +1,8 @@
-WAcoast<-read.table("C:/Matias/Data/Mapping/WAcoastPointsNew.txt", header=T)
-WAislands<-read.table("C:/Matias/Data/Mapping/WAislandsPointsNew.txt", header=T)
-Shelf<-read.table("C:/Matias/Data/Mapping/shelf.txt", header=T)
+handl_OneDrive=function(x)paste('C:/Users/myb/OneDrive - Department of Primary Industries and Regional Development/Matias',x,sep='/')
+
+WAcoast<-read.table(handl_OneDrive("Data/Mapping/WAcoastPointsNew.txt"), header=T)
+WAislands<-read.table(handl_OneDrive("Data/Mapping/WAislandsPointsNew.txt"), header=T)
+Shelf<-read.table(handl_OneDrive("Data/Mapping/shelf.txt"), header=T)
 
 plotmap <- function(long, lat, PLATE,COLORE,XLIM,YLIM)
   {

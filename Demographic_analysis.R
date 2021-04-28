@@ -8,11 +8,13 @@ library(TeachingDemos)      #for grey scale
 library(MASS)      #for multivariate normal pdf
 library(popbio)     #for solving matrices
 
+handl_OneDrive=function(x)paste('C:/Users/myb/OneDrive - Department of Primary Industries and Regional Development/Matias',x,sep='/')
+
 #source sigmas for var-covar matrix
-source("C:/Matias/Analyses/Reference Points/5.Derive var_covar Matrix.r")
+source(handl_OneDrive("Analyses/Reference Points/5.Derive var_covar Matrix.r"))
 
 #source indirect estimation of M
-source("C:/Matias/Analyses/SOURCE_SCRIPTS/M_indirect.R")
+source(handl_OneDrive("Analyses/SOURCE_SCRIPTS/M_indirect.R"))
 
 
 

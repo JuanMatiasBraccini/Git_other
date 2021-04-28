@@ -3,7 +3,9 @@
 library(RNetCDF)
 library(reshape2)
 
-setwd("C:/Matias/Data/Reynolds SST")
+handl_OneDrive=function(x)paste('C:/Users/myb/OneDrive - Department of Primary Industries and Regional Development/Matias',x,sep='/')
+
+setwd(handl_OneDrive("Data/Reynolds SST"))
 url <- 'ftp://ftp.cdc.noaa.gov/Datasets/noaa.oisst.v2/sst.mnmean.nc'
 destfile <- 'sst.mnmean.nc'
 download.file(url, destfile, mode = "wb")

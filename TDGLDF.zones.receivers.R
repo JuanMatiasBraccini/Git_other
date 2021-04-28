@@ -1,5 +1,5 @@
 #Script for plotting TDGDLF map and receivers
-
+handl_OneDrive=function(x)paste('C:/Users/myb/OneDrive - Department of Primary Industries and Regional Development/Matias',x,sep='/'
 fn.map.zones.receivers=function(a,PLATE,OZ.lat,OZ.long,South.WA.lat,South.WA.long)
 {
   library(PBSmapping) 
@@ -14,8 +14,8 @@ fn.map.zones.receivers=function(a,PLATE,OZ.lat,OZ.long,South.WA.lat,South.WA.lon
     #bathymetry
   if(!exists("reshaped"))
   {
-    Bathymetry_120=read.table("C:/Matias/Data/Mapping/get_data112_120.cgi")
-    Bathymetry_138=read.table("C:/Matias/Data/Mapping/get_data120.05_138.cgi")
+    Bathymetry_120=read.table(handl_OneDrive("Data/Mapping/get_data112_120.cgi"))
+    Bathymetry_138=read.table(handl_OneDrive("Data/Mapping/get_data120.05_138.cgi"))
     Bathymetry=rbind(Bathymetry_120,Bathymetry_138)
     Bathymetry=Bathymetry[order(Bathymetry$V1,Bathymetry$V2),]
     xbat=sort(unique(Bathymetry$V1))
@@ -24,15 +24,15 @@ fn.map.zones.receivers=function(a,PLATE,OZ.lat,OZ.long,South.WA.lat,South.WA.lon
   }
     
     #receivers
-  AATAMS.all=read.csv("C:/Matias/Data/Tagging/Acoustic_tagging/Acoustic_tagging_data/AATAMS.all.csv")
-  SMN.all=read.csv("C:/Matias/Data/Tagging/Acoustic_tagging/Acoustic_tagging_data/SMN.all.csv")
+  AATAMS.all=read.csv(handl_OneDrive("Data/Tagging/Acoustic_tagging/Acoustic_tagging_data/AATAMS.all.csv"))
+  SMN.all=read.csv(handl_OneDrive("Data/Tagging/Acoustic_tagging/Acoustic_tagging_data/SMN.all.csv"))
   Receivers=rbind(SMN.all,AATAMS.all)
   Receivers$Station=paste(Receivers$latitude,Receivers$longitude) 
   Receivers=Receivers[order(Receivers$Station),]
   STATIONS=Receivers[!duplicated(Receivers$Station),]
   STATIONS=subset(STATIONS,longitude<=150)
   
-  source("C:/Matias/Analyses/SOURCE_SCRIPTS/Plot.Map.R")  
+  source(handl_OneDrive("Analyses/SOURCE_SCRIPTS/Plot.Map.R"))  
   data(worldLLhigh)
   
   #Plot base map with zones
@@ -62,8 +62,8 @@ fn.map.zones.receivers=function(a,PLATE,OZ.lat,OZ.long,South.WA.lat,South.WA.lon
   points(117.8,-35,pch=19)
   text(122,-33.66,("Esperance"),col="black", cex=1.1)
   points(121.9,-33.86,pch=19)
-  mtext("Latitude (ºS)",side=2,line=1.75,las=3,cex=1.75)
-  mtext("Longitude (ºE)",side=1,line=1.75,cex=1.75)
+  mtext("Latitude (?S)",side=2,line=1.75,las=3,cex=1.75)
+  mtext("Longitude (?E)",side=1,line=1.75,cex=1.75)
   
   #Add receivers
   points(STATIONS$longitude,STATIONS$latitude,col='firebrick3',pch=19,cex=.5)  #receiver location

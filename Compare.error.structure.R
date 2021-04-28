@@ -1,4 +1,6 @@
-source("C:/Matias/Analyses/SOURCE_SCRIPTS/Git_other/pseudo_r2.R")
+handl_OneDrive=function(x)paste('C:/Users/myb/OneDrive - Department of Primary Industries and Regional Development/Matias',x,sep='/')
+
+source(handl_OneDrive("Analyses/SOURCE_SCRIPTS/Git_other/pseudo_r2.R"))
 library(bbmle)
 
 #Plot fit diagnostics

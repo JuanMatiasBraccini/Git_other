@@ -1,5 +1,6 @@
-if(exists("fn.fig")==F)       source("C:/Matias/Analyses/SOURCE_SCRIPTS/Population dynamics/fn.fig.R")
-  if(exists("smart.par")==F)  source("C:/Matias/Analyses/SOURCE_SCRIPTS/Smart_par.R")
+handl_OneDrive=function(x)paste('C:/Users/myb/OneDrive - Department of Primary Industries and Regional Development/Matias',x,sep='/')
+if(exists("fn.fig")==F)       source(handl_OneDrive("Analyses/SOURCE_SCRIPTS/Population dynamics/fn.fig.R"))
+  if(exists("smart.par")==F)  source(handl_OneDrive("Analyses/SOURCE_SCRIPTS/Smart_par.R"))
 packageLoaded <- function(name) 0 != length(grep(paste("^package:", name, "$", sep=""), search()))
 nice.MDS.plot=function(MDS,pt.col,pt.bg,txt.col,txt.cex,PRED,col.pred,pred.cex)
 {
