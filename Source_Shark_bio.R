@@ -132,8 +132,13 @@ Scalefish=Scalefish%>%
         left_join(these.are.scalies,by="UNIQUE_ID")
 
 
+#Fix upper lower case issues
+DATA$SPECIES=toupper(DATA$SPECIES)
+Scalefish$SPECIES=toupper(Scalefish$SPECIES)
+
+
 #remove typos
-typos.shk=c( "BZ"  , "CS" ,"BM","GK")
+typos.shk=toupper(c( "BZ"  , "CS" ,"BM","GK"))
 DATA=subset(DATA,!SPECIES%in%typos.shk)
 
 #scale up unmeasured scalefish
@@ -142,11 +147,9 @@ names(Scalefish)[match("NO UNMEASURED",names(Scalefish))]="Numbers"
 Scalefish$SPECIES=with(Scalefish,ifelse(SPECIES=="HM","MK",ifelse(SPECIES=="SD","BL",
                     ifelse(SPECIES=="SW","SL",SPECIES))))
 
-
-
-typos=c("bp","bt","bx","jf","pj","qQ","wd","ww",
+typos=toupper(c("bp","bt","bx","jf","pj","qQ","wd","ww",
         "FE","JK","KW","LK","NG","PF","SD","SF",
-        "SR","WA","WH","XC","XR")
+        "SR","WA","WH","XC","XR"))
 
 
 Scalefish=subset(Scalefish,!SPECIES%in%typos)
@@ -298,8 +301,12 @@ DATA$SPECIES=with(DATA,ifelse(SPECIES=="JE","JE.T",SPECIES))
 DATA$TYPE=with(DATA,ifelse(SPECIES=="JE.T","Scalefish",TYPE))
 
 DATA=rbind(DATA,Scalefish)  
-DATA$TYPE=with(DATA,ifelse(grepl(".T",SPECIES),'Scalefish',TYPE))
-DATA$TYPE=ifelse(DATA$SPECIES=="BT",'Elasmo',DATA$TYPE)
+
+DATA=DATA%>%
+  mutate(TYPE=ifelse(grepl(".T",SPECIES),'Scalefish',TYPE),
+         TYPE=ifelse(SPECIES%in%c("BT","HT","PT","ST","WT"),'Elasmo',TYPE))
+
+
 
 #Fix lats
 names(DATA)[match(c("MID LAT","MID LONG"),names(DATA))]=c('Mid.Lat','Mid.Long')
@@ -578,6 +585,6 @@ write.csv(Shovel.prop.s,handl_OneDrive("Data/Catch and Effort/prop_banjo_wedge_s
 
 #flush console
 all.objs=ls()
-all.objs=subset(all.objs,!all.objs%in%c('DATA','DATA.bio','DATA.ecosystems','handl_OneDrive'))
+all.objs=subset(all.objs,!all.objs%in%c('DATA','DATA.bio','DATA.ecosystems','handl_OneDrive','Boat_hdr'))
 
 rm(list=all.objs)
