@@ -117,7 +117,8 @@ move.to.scale$"NO UNMEASURED"=NA
 move.to.scale=move.to.scale[,match(c("SHEET_NO","Line no","SPECIES","TL","SEX","NO UNMEASURED"),names(move.to.scale))]
 Scalefish=rbind(Scalefish,move.to.scale)
 
-#add hook info to scalefish. Blank SPECIES in Boat.bio is the line number of a scalefish
+#add hook info to Scalefish table. 
+# note: Blank SPECIES in Boat.bio is the line number of a scalefish
 these.are.scalies=Boat_bio%>%
                     filter(is.na(SPECIES))%>%
                     dplyr::select(UNIQUE_ID,NewComments,LostFlag,DeadFlag,HookedTime,ReleasedTime,BaitSpeciesId,
@@ -144,6 +145,11 @@ DATA=subset(DATA,!SPECIES%in%typos.shk)
 #scale up unmeasured scalefish
 names(Scalefish)[match("NO UNMEASURED",names(Scalefish))]="Numbers"
 
+Scalefish=Scalefish%>%   # Jack entered FL into the 'no unmeasured' column so remove
+            mutate(Numbers=ifelse(Numbers>1 & grepl("PA",SHEET_NO),NA,Numbers))  
+
+
+
 Scalefish$SPECIES=with(Scalefish,ifelse(SPECIES=="HM","MK",ifelse(SPECIES=="SD","BL",
                     ifelse(SPECIES=="SW","SL",SPECIES))))
 
@@ -157,9 +163,10 @@ Scalefish=subset(Scalefish,!SPECIES%in%typos)
 Scalefish$Numbers=with(Scalefish,ifelse(is.na(Numbers),1,ifelse(Numbers==0,1,Numbers)))
 Scalefish$SHEET_NO=with(Scalefish,ifelse(SHEET_NO=="s00265","S00265",SHEET_NO))
 
+Scalefish$TL=with(Scalefish,ifelse(TL==0,NA,TL))
 Expand.scale=subset(Scalefish,Numbers>1)
 Scalefish=subset(Scalefish,Numbers==1)
-Expand.scale$TL=with(Expand.scale,ifelse(TL==0,NA,TL))
+
 EXPNDA=vector('list',nrow(Expand.scale))
 for(e in 1:nrow(Expand.scale))
 {
@@ -273,9 +280,6 @@ Scalefish=Scalefish%>%
                            TRUE~SPECIES))%>%
   dplyr::select(-dummys)
   
-  
-  
-  
 Scalefish$VERT_SAMPL=NA
 Scalefish$SEX=as.character(Scalefish$SEX)
 Scalefish$SEX=with(Scalefish,ifelse(SEX=="f","F",ifelse(SEX=="m","M",SEX)))
@@ -319,7 +323,7 @@ DATA$END2LATD=-DATA$END2LATD
 #note: 0 and 100 are full moon, 50 is new moon, 25 last quarter and 75 first quater
 DATA$Moon=lunar.phase(DATA$date,name = T)
 
-#Remove NA species
+#Remove NA species (these are NA rows add by Shark database in the boat.bio table that corresponds to scalefish)
 DATA=subset(DATA,!is.na(SPECIES))
 
 #Add Number caught
