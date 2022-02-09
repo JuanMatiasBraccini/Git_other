@@ -2,7 +2,7 @@
 #devtools::install_github("dkyleward/RDCOMClient")
 
 # Load the DCOM library
-library (RDCOMClient)
+library(RDCOMClient)
 
 send.email=function(TO,Subject,Body,Attachment=NULL)
 {

@@ -65,9 +65,21 @@ Boat_hdr=Boat_hdr%>%
          Haul.time.avg=strftime(AVE.HAUL.TIME, format='%H:%M'))%>%
   dplyr::select(-c(DATE))
 
+#Patch UNIQUE_ID due to Access macro stuffing in  #ACA
+Boat_bio=Boat_bio%>%
+  mutate(UNIQUE_ID.dummy=LINE_NO,
+         UNIQUE_ID.dummy=ifelse(is.na(UNIQUE_ID.dummy),'',UNIQUE_ID.dummy),
+         UNIQUE_ID.dummy=ifelse(nchar(UNIQUE_ID.dummy)==2,paste('0',UNIQUE_ID.dummy,sep=''),
+                         ifelse(nchar(UNIQUE_ID.dummy)==1,paste('00',UNIQUE_ID.dummy,sep=''),
+                                UNIQUE_ID.dummy)),
+         UNIQUE_ID.dummy=paste(SHEET_NO,UNIQUE_ID.dummy,sep=''),
+         UNIQUE_ID=case_when(!UNIQUE_ID==UNIQUE_ID.dummy~UNIQUE_ID.dummy,
+                             TRUE~UNIQUE_ID))%>%
+  dplyr::select(-UNIQUE_ID.dummy)
+
 
 #Merge biological and sampling information  
-Use.full.boat.hdr=c("Count","season","ZONE","BOTTYPE","CTCHABLITY","RECORDER",
+Use.full.boat.hdr=c("Count","season","ZONE","BOTTYPE","CTCHABLITY",
                     "SEA_CONDTN","MOON","MOON PHASE","SUBBLOCK",
                     "SEA/WEATHER CONDITIONS","Region","Buffer Zone")
 Use.full.boat.hdr=Boat_hdr[,-match(Use.full.boat.hdr,names(Boat_hdr))]
@@ -122,8 +134,9 @@ Scalefish=rbind(Scalefish,move.to.scale)
 these.are.scalies=Boat_bio%>%
                     filter(is.na(SPECIES))%>%
                     dplyr::select(UNIQUE_ID,NewComments,LostFlag,DeadFlag,HookedTime,ReleasedTime,BaitSpeciesId,
-                                  HookLocation,HookType,HookSize,WireTrace,RetainedFlag)
-Scalefish=Scalefish%>%
+                                  HookLocation,HookType,HookSize,WireTrace,RetainedFlag)%>%
+                    distinct(UNIQUE_ID,.keep_all=T)
+Scalefish=Scalefish%>%  
           mutate(dummy=`Line no`,
                  dummy=ifelse(nchar(dummy)==2,paste('0',dummy,sep=''),
                        ifelse(nchar(dummy)==1,paste('00',dummy,sep=''),
@@ -150,8 +163,12 @@ Scalefish=Scalefish%>%   # Jack entered FL into the 'no unmeasured' column so re
 
 
 
-Scalefish$SPECIES=with(Scalefish,ifelse(SPECIES=="HM","MK",ifelse(SPECIES=="SD","BL",
-                    ifelse(SPECIES=="SW","SL",SPECIES))))
+Scalefish$SPECIES=with(Scalefish,
+                       ifelse(SPECIES=="HM","MK",
+                        ifelse(SPECIES=="SD","BL",
+                        ifelse(SPECIES=="DW","DM",
+                        ifelse(SPECIES=="SW","SL",
+                               SPECIES)))))
 
 typos=toupper(c("bp","bt","bx","jf","pj","qQ","wd","ww",
         "FE","JK","KW","LK","NG","PF","SD","SF",
@@ -177,7 +194,7 @@ for(e in 1:nrow(Expand.scale))
 EXPNDA=do.call(rbind,EXPNDA)
 EXPNDA$Numbers=1
 Scalefish=rbind(Scalefish,EXPNDA)
-Scalefish=merge(Scalefish,Use.full.boat.hdr,by="SHEET_NO",all.x=T)
+Scalefish=merge(Scalefish,Use.full.boat.hdr,by="SHEET_NO",all.x=T)   
 names(Scalefish)[match("Line no",names(Scalefish))]="LINE_NO"
 Scalefish$FL=NA
 
@@ -267,7 +284,7 @@ keep.biol=c("SHEET_NO","SPECIES","date","TL","FL","PL","SEX","RELEASE CONDITION"
             "CLASPLENTH","CLASP_CALC","GON_STAGE","RUN_SPERM","MAXOVRYDIA","NO_YOLKOVA","UTERINESTG","NO_EMBRYOS",
             "NO_UNDEVELOPED","EMBLEN_1","EMBLEN_2","EMBLEN_3","EMBLEN_4","EMBLEN_5","EMBLEN_6","EMBLEN_7","EMBLEN_8",
             "EMBLEN_9","EMBLEN_10","EMBLEN_11","EMBLEN_12","STMCH_FULL","STMCH_CONT",
-            "ATAG_NO","DART_TAG_NO","FINTAG_NO","FINTAG_2","BAG_NO","COMMENTS","COMMENTS.hdr")
+            "ATAG_NO","DART_TAG_NO","FINTAG_NO","FINTAG_2","BAG_NO","COMMENTS","COMMENTS.hdr","UNIQUE_ID")
 DATA.bio=DATA[,match(keep.biol,names(DATA))]
 
 #Merge scalefish and shark data
@@ -286,6 +303,7 @@ Scalefish$SEX=with(Scalefish,ifelse(SEX=="f","F",ifelse(SEX=="m","M",SEX)))
 Scalefish$SPECIES=as.character(Scalefish$SPECIES)
 names(Scalefish)[match(c("NO HOOKS"),names(Scalefish))]=c("N.hooks")
 Scalefish$BAG_NO=""
+Scalefish$"RELEASE CONDITION"=""
 add.these.cols=c('PL','COMMENTS',"Weight","BloodFlag","FinClipFlag","MuscleFlag","Lactate","BleedingFlag",
                  "HookRemoved","TrunkL")
 for(i in 1:length(add.these.cols))
@@ -314,9 +332,9 @@ DATA=DATA%>%
 
 #Fix lats
 names(DATA)[match(c("MID LAT","MID LONG"),names(DATA))]=c('Mid.Lat','Mid.Long')
-DATA$Mid.Lat=-DATA$Mid.Lat
-DATA$END1LATD=-DATA$END1LATD
-DATA$END2LATD=-DATA$END2LATD
+DATA$Mid.Lat=-abs(DATA$Mid.Lat)
+DATA$END1LATD=-abs(DATA$END1LATD)
+DATA$END2LATD=-abs(DATA$END2LATD)
 
 
 #Add moon phase
@@ -350,12 +368,12 @@ DATA$Mid.Long=with(DATA,ifelse(SHEET_NO=="N00558",113.2055,Mid.Long))
 DATA$Mid.Lat=with(DATA,ifelse(is.na(Mid.Lat) &!is.na(BLOCK),-as.numeric(substr(BLOCK,1,2)),Mid.Lat))
 DATA$Mid.Long=with(DATA,ifelse(is.na(Mid.Long) &!is.na(BLOCK),100+as.numeric(substr(BLOCK,3,4)),Mid.Long))
 
-DATA$Mid.Lat=with(DATA,ifelse(Mid.Lat>(-1) &!is.na(BLOCK),-as.numeric(substr(BLOCK,1,2)),Mid.Lat))
-DATA$Mid.Lat=with(DATA,ifelse(END1LATD==0 &!is.na(BLOCK),-as.numeric(substr(BLOCK,1,2)),Mid.Lat))
+DATA$Mid.Lat=with(DATA,ifelse(is.na(Mid.Lat) & Mid.Lat>(-1) &!is.na(BLOCK),-as.numeric(substr(BLOCK,1,2)),Mid.Lat))
+DATA$Mid.Lat=with(DATA,ifelse(is.na(Mid.Lat) & END1LATD==0 &!is.na(BLOCK),-as.numeric(substr(BLOCK,1,2)),Mid.Lat))
 
 DATA$Mid.Long=with(DATA,ifelse(Mid.Long==0 &!is.na(BLOCK),100+as.numeric(substr(BLOCK,3,4)),Mid.Long))
 
-DATA$Mid.Lat=with(DATA,ifelse(!substr(Mid.Lat,1,3)==(-as.numeric(substr(BLOCK,1,2))),-as.numeric(substr(BLOCK,1,2)),Mid.Lat))
+DATA$Mid.Lat=with(DATA,ifelse(is.na(Mid.Lat) & !substr(Mid.Lat,1,3)==(-as.numeric(substr(BLOCK,1,2))),-as.numeric(substr(BLOCK,1,2)),Mid.Lat))
 
 # DATA$Mid.Lat=with(DATA,ifelse(Lat.round==(-45.5) &END1LATD==(-30),END1LATD,Mid.Lat))
 # DATA$Mid.Lat=with(DATA,ifelse(Mid.Long<=58,END1LATD,Mid.Lat))
@@ -369,6 +387,7 @@ DATA$Mid.Lat=with(DATA,ifelse(!substr(Mid.Lat,1,3)==(-as.numeric(substr(BLOCK,1,
 # DATA$Mid.Long=with(DATA,ifelse(BLOCK==3415 & Mid.Long>116,END1LNGD,Mid.Long))
 # DATA$Mid.Long=with(DATA,ifelse(BLOCK==3014 & Mid.Long>116,END1LNGD,Mid.Long))
 
+DATA$Mid.Lat=ifelse(DATA$Mid.Lat==0,NA,DATA$Mid.Lat)
 
 DATA$Lat.round = ceiling(DATA$Mid.Lat) -0.5
 DATA$Long.round = floor(DATA$Mid.Long) +0.5
@@ -412,6 +431,8 @@ DATA$MESH_SIZE=with(DATA,ifelse(is.na(MESH_SIZE) & BOAT=="B67" & year>1997,"7",
 DATA$MESH_SIZE=with(DATA,ifelse(is.na(MESH_SIZE) & BOAT%in%c("C48","PS17","E67"),"7",
                                 MESH_SIZE))
 
+#fix boat
+DATA$BOAT=with(DATA,ifelse(BOAT=="TRACEY LEA","E35",BOAT))
 
 #Fix sex
 DATA$SEX=with(DATA,ifelse(SEX=="f","F",ifelse(SEX=="m","M",
@@ -580,6 +601,22 @@ DATA.ecosystems=DATA.ecosystems%>%
 
 
 DATA$SPECIES=with(DATA,ifelse(SHEET_NO=="PA0031" & SPECIES=="DW.T","BW",SPECIES)) #typo, ammended by Jack Parker
+
+
+#Add lactate in Comments not entered in Lactate column
+DATA$Lactate=ifelse(DATA$Lactate=="",NA,DATA$Lactate)
+DATA=DATA%>%
+      mutate(Lactate=case_when(is.na(Lactate) & grepl("lacta", COMMENTS)~gsub("[^[:digit:].]", "",  sub(".*lactate", "", COMMENTS)),
+                               is.na(Lactate) & grepl(paste(c("lacta",'lactate:'),collapse="|"), COMMENTS) & grepl(paste(c('Hi','HI','hi','high','High',': Hi'),collapse="|"),COMMENTS)~'Hi',
+                               TRUE~Lactate),
+             Lactate=tolower(Lactate))
+
+
+#remove gillnet data from Method ==LL
+DATA=DATA%>%
+  mutate(MESH_DROP=ifelse(Method=='LL',NA,MESH_DROP),
+         NET_LENGTH=ifelse(Method=='LL',NA,NET_LENGTH),
+         MESH_SIZE=ifelse(Method=='LL',NA,MESH_SIZE))
 
 # EXPORT SECTION -----------------------------------------------------------------------
 
