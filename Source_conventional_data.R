@@ -11,9 +11,12 @@ library(Hmisc)
 #WA sharks
 
   #Sharks.mdb data base
-setwd("U:/Shark")  # working directory    
+setwd("M:/Production Databases/Shark") 
+#setwd("//fish.wa.gov.au/Data/Production Databases/Shark") 
+channel <- odbcConnectAccess2007("Sharks v20220906.mdb")  #new database updated by Vero
+#setwd("U:/Shark")  # working directory    
 #setwd("M:/Fisheries Research/Production Databases/Shark")
-channel <- odbcConnectAccess2007("Sharks v20200323.mdb")      
+
 Tagging=sqlFetch(channel, "Tag data", colnames = F) 
 Boat_hdr=sqlFetch(channel, "Boat_hdr", colnames = F) 
 Boat_bio=sqlFetch(channel, "Boat_bio", colnames = F) 
@@ -54,7 +57,7 @@ Species.Size.Range=read.csv(handl_OneDrive("Data/Species.Size.Range.csv"))
 #Early manipulations
 these.hdr=c('SHEET_NO','Method','DATE','BOTDEPTH','BOAT','MID.LAT','MID.LONG')
 Flinders_hdr=Flinders_hdr%>%
-              rename(DATE='DATE SET',
+              dplyr::rename(DATE='DATE SET',
                      BOTDEPTH='Avg DEPTH')%>%
               mutate(Method="DL",
                      BOAT='Flinders',
@@ -62,7 +65,7 @@ Flinders_hdr=Flinders_hdr%>%
                      MID.LAT= END1LATD+(END1LATM/60),
                      MID.LAT=-abs(MID.LAT))
 Boat_hdr=Boat_hdr%>%
-            rename(MID.LONG='MID LONG',
+            dplyr::rename(MID.LONG='MID LONG',
                    MID.LAT='MID LAT')%>%
             mutate(MID.LAT=-abs(MID.LAT))
 
@@ -168,14 +171,14 @@ Species.Codes %>% mutate(across(where(is.factor), as.character)) -> Species.Code
 
 #Fix Tag.no if incomplete
 Tagging=Tagging%>%
-  rename(Tag.no2='Tag no',
+  dplyr::rename(Tag.no2='Tag no',
          ATAG.NO="ATAG NO",
          RELEASE.DATE="RELEASE DATE")%>%
   mutate(Tag.no=as.character(FINTAGNO))
 
 #Tag type
 Tagging=Tagging%>%
-        rename(Recaptured="Captured?")%>%
+  dplyr::rename(Recaptured="Captured?")%>%
         mutate(CONDITION=ifelse(CONDITION=="?",NA,CONDITION),
                Tag.type=case_when(!is.na(ATAG.NO)~'acoustic',
                                   !is.na(DARTTAGNO) & is.na(Tag.no)~'conventional.dart',
@@ -210,7 +213,7 @@ Tagging=Tagging%>%
 #      Hence, combine with Boat bio.....
 TL.species=c('ZE','PC','FR','TN','PZ','PM','SR') 
 Boat_bio=Boat_bio%>%
-            rename(Tag.no="FINTAG NO",
+  dplyr::rename(Tag.no="FINTAG NO",
                    DARTTAGNO="DART TAG NO",
                    ATAG.NO="ATAG NO",
                    FINTAG.2="FINTAG 2",
@@ -227,7 +230,7 @@ Boat_bio=Boat_bio%>%
                                 Tag.no)))%>%
             filter(!is.na(Tag.no))%>%
             mutate(Tag.no=tolower(Tag.no))%>%
-            rename(SHEET_NO_Boat_bio=SHEET_NO)
+  dplyr::rename(SHEET_NO_Boat_bio=SHEET_NO)
 
 Tagging=full_join(Tagging,subset(Boat_bio,select=c(SHEET_NO_Boat_bio,SPECIES,TL,Tag.no,
                                                    Tag.type2,CONDITION_Boat_bio,SEX_Boat_bio)),
@@ -239,11 +242,12 @@ Tagging=full_join(Tagging,subset(Boat_bio,select=c(SHEET_NO_Boat_bio,SPECIES,TL,
         mutate(SHEET_NO=ifelse(is.na(SHEET_NO),SHEET_NO_Boat_bio,SHEET_NO),
                CONDITION=ifelse(is.na(CONDITION),CONDITION_Boat_bio,CONDITION),
                SEX=ifelse(is.na(SEX),SEX_Boat_bio,SEX))
+Tagging=Tagging[!duplicated(Tagging$Tag.no),]
 
 Gear1=Gear%>%
         distinct(SHEET_NO,.keep_all = T)%>%
         filter(SHEET_NO%in%unique(Tagging$SHEET_NO))%>%
-        rename(Method_hdr=Method,
+  dplyr::rename(Method_hdr=Method,
                DATE_hdr=DATE,
                BOTDEPTH_hdr=BOTDEPTH,
                BOAT_hdr=BOAT,
@@ -304,7 +308,7 @@ Tagging=Tagging%>%
                  Lat.rec=ifelse(is.na(Lat.rec),-abs(RECLATDECDEG),Lat.rec),
                  Long.rels=ifelse(is.na(Long.rels),MID.LONG_hdr,Long.rels),
                  Lat.rels=ifelse(is.na(Lat.rels),MID.LAT_hdr,Lat.rels))%>%
-          rename(Method=Method_hdr,
+  dplyr::rename(Method=Method_hdr,
                  BOTDEPTH=BOTDEPTH_hdr,
                  BOAT=BOAT_hdr)
 

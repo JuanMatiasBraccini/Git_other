@@ -11,8 +11,10 @@ options(stringsAsFactors = FALSE)
 
 
 #Sharks data base
-setwd("U:/Shark") 
-channel <- odbcConnectAccess2007("Sharks v20200323.mdb")  #new databased updated by Vero
+setwd("M:/Production Databases/Shark") #updated 16/10/2023
+#setwd("//fish.wa.gov.au/Data/Production Databases/Shark") 
+#setwd("U:/Shark")
+channel <- odbcConnectAccess2007("Sharks v20220906.mdb")  #new database updated by Vero
 #channel <- odbcConnectAccess2007("Sharks.mdb") 
 
 Boat_bio=sqlFetch(channel, "Boat_bio", colnames = F) 
@@ -53,7 +55,10 @@ Boat_hdr$SOAK.TIME=with(Boat_hdr,ifelse(SOAK.TIME<0,24+SOAK.TIME,SOAK.TIME))
 
 #Extract month,year, day, hour
 Boat_hdr=Boat_hdr%>%
-  mutate(date=as.Date(DATE,format="%Y-%m-%d"),
+  mutate(date=as.Date(format(DATE, "%Y-%m-%d")),
+         date=case_when(as.character(date)%in%c('2032-07-04','2032-07-03') & SHEET_NO=='H00017'~as.Date('2023-07-04'),
+                        as.character(date)%in%c('2021-07-08') & SHEET_NO=='I00803'~as.Date('2022-07-08'),
+                        TRUE~date),
          Day=mday(date),
          Month=month(date),
          year=year(date),
@@ -65,7 +70,7 @@ Boat_hdr=Boat_hdr%>%
          Haul.time.avg=strftime(AVE.HAUL.TIME, format='%H:%M'))%>%
   dplyr::select(-c(DATE))
 
-#Patch UNIQUE_ID due to Access macro stuffing in  #ACA
+#Patch UNIQUE_ID due to Access macro stuffing in  
 Boat_bio=Boat_bio%>%
   mutate(UNIQUE_ID.dummy=LINE_NO,
          UNIQUE_ID.dummy=ifelse(is.na(UNIQUE_ID.dummy),'',UNIQUE_ID.dummy),
@@ -206,7 +211,8 @@ Scalefish$SPECIES=paste(Scalefish$SPECIES,".T",sep="")
 
 DATA$SPECIES=with(DATA,ifelse(SPECIES=="se","SE",ifelse(SPECIES=="tk","TK",
                  ifelse(SPECIES=="wr","WR",ifelse(SPECIES=="ww","WW",SPECIES)))))
-DATA$SPECIES=with(DATA,ifelse(SPECIES=="wd","WD",SPECIES)) 
+DATA$SPECIES=with(DATA,ifelse(SPECIES=="wd","WD",SPECIES))
+DATA$SPECIES=with(DATA,ifelse(SPECIES%in%c("dw","DW"),"BW",SPECIES))
 DATA$SPECIES=with(DATA,ifelse(SPECIES=="bw","BW",SPECIES)) 
 DATA$SPECIES=with(DATA,ifelse(SPECIES=="bt","BT",SPECIES)) 
 DATA$SPECIES=with(DATA,ifelse(SPECIES=="sr","SR",SPECIES)) 
@@ -278,6 +284,9 @@ DATA=DATA%>%
                            SPECIES=='SS'  ~'AV',    
                            TRUE~SPECIES))%>%
   dplyr::select(-dummys)
+
+DATA=DATA%>%
+  mutate(SPECIES=ifelse(SPECIES=='GH' & SHEET_NO=='I00842','HG',SPECIES))
 
 #Create Biological data dataframe
 keep.biol=c("SHEET_NO","SPECIES","date","TL","FL","PL","SEX","RELEASE CONDITION","UMBIL_SCAR", "NO_DISCARDS",
@@ -431,6 +440,18 @@ DATA$MESH_SIZE=with(DATA,ifelse(is.na(MESH_SIZE) & BOAT=="B67" & year>1997,"7",
 DATA$MESH_SIZE=with(DATA,ifelse(is.na(MESH_SIZE) & BOAT%in%c("C48","PS17","E67"),"7",
                                 MESH_SIZE))
 
+DATA=DATA%>%
+  mutate(MESH_SIZE=ifelse(Method=='GN' & MESH_SIZE=='165',"6.5",
+                   ifelse(Method=='GN' & MESH_SIZE=='4"',"4",
+                   ifelse(Method=='GN' & MESH_SIZE=='5"',"5",
+                   ifelse(Method=='GN' & MESH_SIZE=='6"',"6",
+                   ifelse(Method=='GN' & MESH_SIZE=='7"',"7",
+                   ifelse(Method=='GN' & MESH_SIZE=='8"',"8",
+                   ifelse(Method=='GN' & MESH_SIZE=='10"',"10",
+                   MESH_SIZE)))))))) #ACA
+
+
+
 #fix boat
 DATA$BOAT=with(DATA,ifelse(BOAT=="TRACEY LEA","E35",BOAT))
 
@@ -440,22 +461,22 @@ DATA$SEX=with(DATA,ifelse(SEX=="f","F",ifelse(SEX=="m","M",
 
 #Fix FL
 DATA$FL=with(DATA,ifelse(FL<10,NA,FL))
-
-#Re set minimum FL observed 
-DATA$FL=with(DATA,ifelse(SPECIES=="BW" & FL<60,60,ifelse(SPECIES=="WH" & FL<25,25,
-                       ifelse(SPECIES=="SD" & FL<20,20,FL))))
-
-DATA$FL=with(DATA,ifelse(SPECIES=="MI" & FL==690,69,FL))
+DATA$FL=with(DATA,ifelse(SPECIES=="BW" & FL<41,NA,ifelse(SPECIES=="WH" & FL==12,120,
+                       ifelse(SPECIES=="SD" & FL<20,20,FL)))) #Re set minimum FL observed 
+DATA$FL=with(DATA,ifelse(SPECIES=="MI" & FL==690,69,
+                  ifelse(SPECIES=="SC" & FL==9.90,99,
+                  ifelse(SPECIES=="SC" & FL<11,105.3,
+                  FL))))  #some typos
 
 #Fix depth numbers
 DATA$BOTDEPTH=with(DATA,ifelse(SHEET_NO=="J00999",84,
-                               ifelse(SHEET_NO=="J01188",73,
-                                      ifelse(SHEET_NO=="R00413",85,
-                                             ifelse(SHEET_NO=="R00440",120,
-                                                    ifelse(SHEET_NO=="R00716",7,
-                                                           ifelse(SHEET_NO=="R00930",48,
-                                                                  ifelse(SHEET_NO=="R00422",75,
-                                                                         ifelse(SHEET_NO=="R01059",56,BOTDEPTH)))))))))
+                        ifelse(SHEET_NO=="J01188",73,
+                        ifelse(SHEET_NO=="R00413",85,
+                        ifelse(SHEET_NO=="R00440",120,
+                        ifelse(SHEET_NO=="R00716",7,
+                        ifelse(SHEET_NO=="R00930",48,
+                        ifelse(SHEET_NO=="R00422",75,
+                        ifelse(SHEET_NO=="R01059",56,BOTDEPTH)))))))))
 
 
 
@@ -601,6 +622,60 @@ DATA.ecosystems=DATA.ecosystems%>%
 
 
 DATA$SPECIES=with(DATA,ifelse(SHEET_NO=="PA0031" & SPECIES=="DW.T","BW",SPECIES)) #typo, ammended by Jack Parker
+DATA.ecosystems$SPECIES=with(DATA.ecosystems,ifelse(SHEET_NO=="PA0031" & SPECIES=="DW.T","BW",SPECIES))
+DATA.bio$SPECIES=with(DATA.bio,ifelse(SHEET_NO=="PA0031" & SPECIES=="DW.T","BW",SPECIES))
+
+#Manually add lost species and subtract lost hooks (survey only, done in PA script for PA shots) 
+#note:  this was entered only in comments for each new year
+#       some are already deducted by data person entry, so those changed here are the ones not deducted by data person
+#       from now on, only do for year >2022
+
+# upto 2022
+lost=DATA[grep('lost',tolower(DATA$COMMENTS.hdr)),]%>%
+  filter(Method=='LL')%>%
+  distinct(SHEET_NO,COMMENTS.hdr)
+lost.hooks=lost[grep('hook',tolower(lost$COMMENTS.hdr)),]%>%
+  filter(!grepl('PA',SHEET_NO))
+
+DATA=DATA%>%
+  mutate(N.hooks=ifelse(SHEET_NO=="N00348", (N.hooks-6),
+                 ifelse(SHEET_NO=="S00254", (N.hooks-30),
+                 ifelse(SHEET_NO=="W00115", (N.hooks-30),
+                 ifelse(SHEET_NO=="N00101", (N.hooks-4),
+                 ifelse(SHEET_NO=="N00857", (N.hooks-30),
+                 ifelse(SHEET_NO=="Z00030", (N.hooks-31),
+                 ifelse(SHEET_NO=="W00040", (N.hooks-15),
+                 ifelse(SHEET_NO=="N00353", (N.hooks-2),
+                 N.hooks)))))))))
+
+dummy=c(rep("N00101",2),"N00104",rep("N00110",2),"N00115",rep("N00130",2),"N00135","N00151",
+        "N00161","N00162","N00164","N00179","N00184","N00189")
+Add.sp=data.frame(SHEET_NO=dummy,
+                  SPECIES=c(rep('TK',2),rep('TG',2),'TK',rep('TK',11)))
+
+DATA.add.sp.com=Add.sp%>%     
+          left_join(DATA%>%
+                      dplyr::select(-SPECIES)%>%distinct(SHEET_NO,.keep_all=T),
+                    by='SHEET_NO')%>%
+          mutate(LINE_NO=NA, TL=NA, SEX=NA, UNIQUE_ID=NA, NewComments=NA, LostFlag=NA,
+                 DeadFlag=NA, HookedTime=NA, ReleasedTime=NA, HookLocation=NA, RetainedFlag=NA,
+                 FL=NA, VERT_SAMPL=NA,BAG_NO=NA, PL=NA, COMMENTS=NA, Weight=NA, BloodFlag=NA,
+                 FinClipFlag=NA, MuscleFlag=NA, Lactate=NA, BleedingFlag=NA, HookRemoved=NA, 
+                 TrunkL=NA, Disc.width=NA)%>%
+  dplyr::select(-c(TYPE,COMMON_NAME,SCIENTIFIC_NAME,Taxa,CAES_Code,CAAB_code))%>%
+  left_join(SPECIES.names,by=c("SPECIES" = "Species"))
+
+DATA.add.sp.com=DATA.add.sp.com%>%
+  mutate(TYPE=ifelse(Taxa=='Elasmobranch','Elasmo',
+              ifelse(Taxa=='Teleost','Scalefish',
+                     NA)))
+
+DATA.add.sp.com=DATA.add.sp.com[,order(names(DATA.add.sp.com))]
+DATA=DATA[,order(names(DATA))]
+DATA=rbind(DATA,DATA.add.sp.com)
+
+#from 2022 on
+
 
 
 #Add lactate in Comments not entered in Lactate column
@@ -617,6 +692,14 @@ DATA=DATA%>%
   mutate(MESH_DROP=ifelse(Method=='LL',NA,MESH_DROP),
          NET_LENGTH=ifelse(Method=='LL',NA,NET_LENGTH),
          MESH_SIZE=ifelse(Method=='LL',NA,MESH_SIZE))
+DATA.ecosystems=DATA.ecosystems%>%
+        mutate(MESH_DROP=ifelse(Method=='LL',NA,MESH_DROP),
+               NET_LENGTH=ifelse(Method=='LL',NA,NET_LENGTH),
+               MESH_SIZE=ifelse(Method=='LL',NA,MESH_SIZE))
+DATA.bio=DATA.bio%>%
+        mutate(MESH_DROP=ifelse(Method=='LL',NA,MESH_DROP),
+               NET_LENGTH=ifelse(Method=='LL',NA,NET_LENGTH),
+               MESH_SIZE=ifelse(Method=='LL',NA,MESH_SIZE))
 
 # EXPORT SECTION -----------------------------------------------------------------------
 
@@ -626,6 +709,6 @@ write.csv(Shovel.prop.s,handl_OneDrive("Data/Catch and Effort/prop_banjo_wedge_s
 
 #flush console
 all.objs=ls()
-all.objs=subset(all.objs,!all.objs%in%c('DATA','DATA.bio','DATA.ecosystems','handl_OneDrive','Boat_hdr'))
+all.objs=subset(all.objs,!all.objs%in%c('DATA','DATA.bio','DATA.ecosystems','handl_OneDrive','Boat_hdr','Usr','User'))
 
 rm(list=all.objs)

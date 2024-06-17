@@ -4,7 +4,7 @@
 # Load the DCOM library
 library(RDCOMClient)
 
-send.email=function(TO,Subject,Body,Attachment=NULL)
+send.email=function(TO,CC="matias.braccini@dpird.wa.gov.au",BCC="",Subject,Body,Attachment=NULL)
 {
   # Open Outlook
   Outlook <- COMCreate("Outlook.Application")
@@ -14,8 +14,8 @@ send.email=function(TO,Subject,Body,Attachment=NULL)
   
   # Set the recipient, subject, and body
   Email[["to"]] = TO
-  Email[["cc"]] = "matias.braccini@dpird.wa.gov.au"
-  Email[["bcc"]] = ""
+  Email[["cc"]] = CC
+  Email[["bcc"]] = BCC
   Email[["subject"]] = Subject
   Email[["body"]] = Body
   if(!is.null(Attachment))Email[["attachments"]]$Add(Attachment)  
