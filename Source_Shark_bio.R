@@ -82,12 +82,18 @@ Boat_bio=Boat_bio%>%
                              TRUE~UNIQUE_ID))%>%
   dplyr::select(-UNIQUE_ID.dummy)
 
+#Remove columns occurring both in Boat_hdr and Boat_bio
+a=names(Boat_hdr)
+b=names(Boat_bio)
+dumi.dupli=b[which(b%in%a)]
+dumi.dupli=subset(dumi.dupli,!dumi.dupli%in%c("SHEET_NO","COMMENTS"))
+if(length(dumi.dupli)>0) Boat_hdr=Boat_hdr[,-match(dumi.dupli,names(Boat_hdr))]  
 
 #Merge biological and sampling information  
-Use.full.boat.hdr=c("Count","season","ZONE","BOTTYPE","CTCHABLITY",
+Use.less.boat.hdr=c("Count","season","ZONE","BOTTYPE","CTCHABLITY",
                     "SEA_CONDTN","MOON","MOON PHASE","SUBBLOCK",
                     "SEA/WEATHER CONDITIONS","Region","Buffer Zone")
-Use.full.boat.hdr=Boat_hdr[,-match(Use.full.boat.hdr,names(Boat_hdr))]
+Use.full.boat.hdr=Boat_hdr[,-match(Use.less.boat.hdr,names(Boat_hdr))]
 names(Use.full.boat.hdr)[match("COMMENTS",names(Use.full.boat.hdr))]="COMMENTS.hdr"
 DATA=merge(Boat_bio,Use.full.boat.hdr,by="SHEET_NO",all.x=T)
 
