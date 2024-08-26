@@ -1,5 +1,10 @@
 # SCRIPT FOR SOURCING BIOLOGICAL DATA FROM SHARK DATABASE
 
+#notes:
+#       Every new year: update 'Manually add lost species and subtract lost hooks'
+
+#MISSING: TOs to add species only reported in Boat_header comments
+
 library(RODBC)
 library(lunar)   #moon phases
 library(lubridate)
@@ -9,14 +14,15 @@ options(stringsAsFactors = FALSE)
 
 # DATA SECTION -----------------------------------------------------------------------
 
-
 #Sharks data base
 setwd("M:/Production Databases/Shark") #updated 16/10/2023
 #setwd("//fish.wa.gov.au/Data/Production Databases/Shark") 
 #setwd("U:/Shark")
-channel <- odbcConnectAccess2007("Sharks v20220906.mdb")  #new database updated by Vero
-#channel <- odbcConnectAccess2007("Sharks.mdb") 
+Dat.Beis<-'Sharks v20240820 UAT.mdb' #new database updated by Vero's team
+#Dat.Beis<-'Sharks v20220906.mdb'
+#Dat.Beis<-'Sharks.mdb'
 
+channel <- odbcConnectAccess2007(Dat.Beis)  
 Boat_bio=sqlFetch(channel, "Boat_bio", colnames = F) 
 Scalefish=sqlFetch(channel, "Scalefish", colnames = F) 
 Boat_hdr=sqlFetch(channel, "Boat_hdr", colnames = F)   
@@ -42,7 +48,6 @@ TL_FL=read.csv(handl_OneDrive("Data/Naturaliste/FL_to_TL.csv"),
 
 # PROCEDURE SECTION -----------------------------------------------------------------------
               
-
 #Fix soak time 
 names(Boat_hdr)[match(c("SOAK TIME",'AVE SET TIME','AVE HAUL TIME'),names(Boat_hdr))]=
   c("SOAK.TIME",'AVE.SET.TIME','AVE.HAUL.TIME')  
@@ -112,12 +117,10 @@ for(f in ID.f) Scalefish[,f]=as.character(Scalefish[,f])
 for(i in 1:ncol(SPECIES.names))if(is.factor(SPECIES.names[,i])) SPECIES.names[,i]=as.character(SPECIES.names[,i])
 
 
-#Expand records from bycatch species that were reported as a total sum
+#Expand records from species that were reported in 'NO DISCARDS' (number discarded)
 colnames(DATA)[match("NO DISCARDS",colnames(DATA))]="NO_DISCARDS"
 dummy=subset(DATA,NO_DISCARDS>1)
 DATA=subset(DATA,NO_DISCARDS<=1|is.na(NO_DISCARDS))
-
-
 EXPNDA=vector('list',nrow(dummy))
 for(e in 1:nrow(dummy))
 {
@@ -129,9 +132,7 @@ for(e in 1:nrow(dummy))
 EXPNDA=do.call(rbind,EXPNDA)
 DATA=rbind(DATA,EXPNDA)
 
-
 These.are.scalies=c("BB","DM","PS","RS","MK","NW","QS")
-
 move.to.scale=subset(DATA,SPECIES%in%These.are.scalies)
 names(move.to.scale)[match(c("LINE_NO"),names(move.to.scale))]=c("Line no")
 DATA=subset(DATA,!SPECIES%in%These.are.scalies)
@@ -250,7 +251,7 @@ DATA$SEX=with(DATA,ifelse(SEX=="f","F",ifelse(SEX=="m","M",
 Cnhg=match(c("NO HOOKS","DART TAG NO","FINTAG NO","FINTAG 2","ATAG NO","BAG NO"),names(DATA))
 names(DATA)[Cnhg]=c("N.hooks","DART_TAG_NO","FINTAG_NO","FINTAG_2","ATAG_NO","BAG_NO")
 
-#Add bycatch species in boat header comments
+#Add individuals (mostly bycatch species but some commercial) not reported as row entries but only mentioned in boat header comments
 Boat_bio_header_sp=subset(Boat_bio_header_sp,select=c(SHEET_NO,SPECIES2))
 colnames(Boat_bio_header_sp)[2]="SPECIES"
 Dummyss=subset(DATA,SHEET_NO%in%unique(Boat_bio_header_sp$SHEET_NO))
@@ -273,14 +274,26 @@ Boat_bio_header_sp=Boat_bio_header_sp[,match(names(DATA),names(Boat_bio_header_s
 DATA=rbind(DATA,Boat_bio_header_sp)
 
 #fix temperature
-DATA$TEMP=with(DATA,ifelse(TEMP==2537,25.7,TEMP))
+DATA$TEMP=with(DATA,ifelse(TEMP==2537,25.7,ifelse(TEMP==0,NA,TEMP)))
 
 #Convert TL to FL if FL is NA and there is TL info
+DATA=DATA%>%
+  mutate(FL=case_when(FL==0~NA,
+                      SHEET_NO=='U00014' & FL<3~280,
+                      TRUE~FL),
+         TL=case_when(TL==0~NA,
+                      SHEET_NO=='U00014' & TL<4~330,
+                      SHEET_NO=='U00113' & TL==2.0~200,
+                      SHEET_NO=='U00013' & TL== 3.0~300,
+                      SHEET_NO=='U00024' & TL==4.5~450,
+                      TRUE~TL))
 DATA=merge(DATA,TL_FL[,match(c("SPECIES","a.intercept","b.slope"),names(TL_FL))],by="SPECIES",all.x=T)
-DATA$TL=with(DATA,ifelse(TL==0,NA,TL))
-DATA$FL=with(DATA,ifelse(!is.na(FL) & !is.na(TL) & FL>TL,NA,FL))
+DATA$TL=with(DATA,ifelse(!is.na(FL) & !is.na(TL) & FL>TL,NA,TL))
 DATA$FL=with(DATA,ifelse(is.na(FL)&!is.na(TL),(TL-a.intercept)/b.slope,FL))
 DATA=DATA[,-match(c("a.intercept","b.slope"),names(DATA))]
+DATA=DATA%>%
+        mutate(FL=case_when(FL<=0~NA,
+                            TRUE~FL))
 
 #Amend species code to family for species outside reported distribution  
 DATA$dummys=DATA$`MID LAT`
@@ -385,10 +398,14 @@ DATA$Mid.Long=with(DATA,ifelse(is.na(Mid.Long) &!is.na(BLOCK),100+as.numeric(sub
 
 DATA$Mid.Lat=with(DATA,ifelse(is.na(Mid.Lat) & Mid.Lat>(-1) &!is.na(BLOCK),-as.numeric(substr(BLOCK,1,2)),Mid.Lat))
 DATA$Mid.Lat=with(DATA,ifelse(is.na(Mid.Lat) & END1LATD==0 &!is.na(BLOCK),-as.numeric(substr(BLOCK,1,2)),Mid.Lat))
+DATA$Mid.Lat=with(DATA,ifelse(is.na(Mid.Lat) & !substr(Mid.Lat,1,3)==(-as.numeric(substr(BLOCK,1,2))),-as.numeric(substr(BLOCK,1,2)),Mid.Lat))
+
+DATA$Mid.Lat=with(DATA,ifelse(Mid.Lat<(-40) & SHEET_NO=="S00232" &!is.na(BLOCK),-as.numeric(substr(BLOCK,1,2)),Mid.Lat))
 
 DATA$Mid.Long=with(DATA,ifelse(Mid.Long==0 &!is.na(BLOCK),100+as.numeric(substr(BLOCK,3,4)),Mid.Long))
+DATA$Mid.Long=with(DATA,ifelse(Mid.Long<80 & SHEET_NO=="F00110" &!is.na(BLOCK),100+as.numeric(substr(BLOCK,3,4)),Mid.Long))
 
-DATA$Mid.Lat=with(DATA,ifelse(is.na(Mid.Lat) & !substr(Mid.Lat,1,3)==(-as.numeric(substr(BLOCK,1,2))),-as.numeric(substr(BLOCK,1,2)),Mid.Lat))
+
 
 # DATA$Mid.Lat=with(DATA,ifelse(Lat.round==(-45.5) &END1LATD==(-30),END1LATD,Mid.Lat))
 # DATA$Mid.Lat=with(DATA,ifelse(Mid.Long<=58,END1LATD,Mid.Lat))
@@ -404,10 +421,30 @@ DATA$Mid.Lat=with(DATA,ifelse(is.na(Mid.Lat) & !substr(Mid.Lat,1,3)==(-as.numeri
 
 DATA$Mid.Lat=ifelse(DATA$Mid.Lat==0,NA,DATA$Mid.Lat)
 
+DATA=DATA%>%
+        mutate(Mid.Lat=case_when(SHEET_NO=='M00239' ~18.44,
+                                 TRUE~Mid.Lat))
+
 DATA$Lat.round = ceiling(DATA$Mid.Lat) -0.5
 DATA$Long.round = floor(DATA$Mid.Long) +0.5
 
-
+#Check lat and longs not on land
+Do.dis=FALSE
+if(Do.dis)
+{
+  WAcoast<-read.table(handl_OneDrive("Data/Mapping/WAcoastPointsNew.txt"), header=T)
+  WAcoast=WAcoast%>%mutate(Latitude=abs(Latitude))
+  dd=DATA%>%
+    distinct(SHEET_NO,.keep_all = T)
+  dd$Mid.Lat=abs(dd$Mid.Lat)
+  plot(seq(112,130,length.out=10),seq(36,12,length.out=10), type="n", xlab="", ylab="", xlim=c(112,130),ylim=c(36,12))
+  polygon(WAcoast$Longitude,WAcoast$Latitude)
+  points(dd$Mid.Long,dd$Mid.Lat,col='forestgreen')
+  text(x=121.5,y=22.5,labels='M00239',pos=4)
+  
+  a=dd%>%filter(Mid.Long>114.14  & Mid.Long<114.75 &  Mid.Lat<(25.11)& Mid.Lat>(26.53))
+  
+}
 
 # Add fishing zones
 DATA$zone=as.character(with(DATA,ifelse(Mid.Long>=116.5 & Mid.Lat<=(-26),"Zone2",
@@ -454,7 +491,7 @@ DATA=DATA%>%
                    ifelse(Method=='GN' & MESH_SIZE=='7"',"7",
                    ifelse(Method=='GN' & MESH_SIZE=='8"',"8",
                    ifelse(Method=='GN' & MESH_SIZE=='10"',"10",
-                   MESH_SIZE)))))))) #ACA
+                   MESH_SIZE)))))))) 
 
 
 
@@ -473,6 +510,47 @@ DATA$FL=with(DATA,ifelse(SPECIES=="MI" & FL==690,69,
                   ifelse(SPECIES=="SC" & FL==9.90,99,
                   ifelse(SPECIES=="SC" & FL<11,105.3,
                   FL))))  #some typos
+DATA=DATA%>%
+  mutate(FL=case_when(SPECIES=='PJ' & FL>140 ~ FL/10,
+                      TRUE~FL))
+
+#Fix TL
+DATA=DATA%>%
+  mutate(TL=case_when(SPECIES=='BB.T' & TL<10 ~ NA,
+                      SPECIES=='DM.T' & TL<20 ~ NA,
+                      SPECIES=='BA.T' & TL>120 ~ NA,
+                      SPECIES=='KJ.T' & TL>70 ~ NA,
+                      SPECIES=='ML.T' & TL>60 ~ NA,
+                      SPECIES=='NW.T' & (TL>110 | TL<10)~ NA,
+                      SPECIES=='JE.T' & TL>200 ~ TL/10,
+                      SPECIES=='PJ' & TL>160 ~ TL/10,
+                      SPECIES=='QS.T' & TL>130 ~ TL/10,
+                      SPECIES=='TV.T' & TL<5 ~ NA,
+                      SPECIES=='TV.T' & TL>100 ~ TL/10,
+                      TRUE~TL))
+
+dothis=FALSE
+if(dothis)
+{
+  AA=rev(sort(table(DATA$SPECIES)))
+  DIS=names(AA)[101:120]
+  
+  DATA%>%
+    filter(SPECIES%in%DIS)%>%
+    mutate(Size=ifelse(TYPE=='Scalefish',TL,
+                       ifelse(TYPE=='Elasmo',FL,
+                              NA)),
+           Size=ifelse(SPECIES%in%c('ER','SR','BC','PC','SM'),TL,Size))%>%
+    ggplot()+
+    geom_histogram(aes(Size))+
+    facet_wrap(~SPECIES,scales='free')+
+    scale_x_continuous(limits = c(0, NA))
+  
+  di='SM'
+  b1=DATA%>%filter(SPECIES==di)%>%distinct(SHEET_NO,FL,TL,PL)%>%filter(!is.na(TL))%>%arrange(TL)
+  tail(b1)
+  SPECIES.names%>%filter(Species ==di)
+}
 
 #Fix depth numbers
 DATA$BOTDEPTH=with(DATA,ifelse(SHEET_NO=="J00999",84,
@@ -510,17 +588,13 @@ for(q in 1:length(Biol.vars))
   id=match(Biol.vars[q],names(DATA.bio))
   DATA.bio[,id]=ifelse(DATA.bio[,id]%in%c('?','`'),NA,DATA.bio[,id])
 }
-
 Cannot.be.0=c("MAXOVRYDIA","NO_YOLKOVA","NO_EMBRYOS","NO_UNDEVELOPED","EMBLEN_1")
 for(q in 1:length(Cannot.be.0))
 {
   id=match(Cannot.be.0[q],names(DATA.bio))
   DATA.bio[,id]=ifelse(DATA.bio[,id]==0,NA,DATA.bio[,id])
 }
-
-
 rm(D)
-
 
 
 #Create data set for ecoystem analysis of GN fishery
@@ -634,15 +708,14 @@ DATA.bio$SPECIES=with(DATA.bio,ifelse(SHEET_NO=="PA0031" & SPECIES=="DW.T","BW",
 #Manually add lost species and subtract lost hooks (survey only, done in PA script for PA shots) 
 #note:  this was entered only in comments for each new year
 #       some are already deducted by data person entry, so those changed here are the ones not deducted by data person
-#       from now on, only do for year >2022
+upto=as.Date("2022-07-15")
 
-# upto 2022
 lost=DATA[grep('lost',tolower(DATA$COMMENTS.hdr)),]%>%
   filter(Method=='LL')%>%
-  distinct(SHEET_NO,COMMENTS.hdr)
+  distinct(SHEET_NO,date,COMMENTS.hdr)%>%
+  filter(date>upto)
 lost.hooks=lost[grep('hook',tolower(lost$COMMENTS.hdr)),]%>%
-  filter(!grepl('PA',SHEET_NO))
-
+  filter(!grepl('PA',SHEET_NO))%>%arrange(date)
 DATA=DATA%>%
   mutate(N.hooks=ifelse(SHEET_NO=="N00348", (N.hooks-6),
                  ifelse(SHEET_NO=="S00254", (N.hooks-30),
@@ -653,12 +726,10 @@ DATA=DATA%>%
                  ifelse(SHEET_NO=="W00040", (N.hooks-15),
                  ifelse(SHEET_NO=="N00353", (N.hooks-2),
                  N.hooks)))))))))
-
 dummy=c(rep("N00101",2),"N00104",rep("N00110",2),"N00115",rep("N00130",2),"N00135","N00151",
-        "N00161","N00162","N00164","N00179","N00184","N00189")
+        "N00161","N00162","N00164","N00179","N00184","N00189","N00163")
 Add.sp=data.frame(SHEET_NO=dummy,
-                  SPECIES=c(rep('TK',2),rep('TG',2),'TK',rep('TK',11)))
-
+                  SPECIES=c(rep('TK',2),rep('TG',2),'TK',rep('TK',11),'MI'))
 DATA.add.sp.com=Add.sp%>%     
           left_join(DATA%>%
                       dplyr::select(-SPECIES)%>%distinct(SHEET_NO,.keep_all=T),
@@ -670,17 +741,13 @@ DATA.add.sp.com=Add.sp%>%
                  TrunkL=NA, Disc.width=NA)%>%
   dplyr::select(-c(TYPE,COMMON_NAME,SCIENTIFIC_NAME,Taxa,CAES_Code,CAAB_code))%>%
   left_join(SPECIES.names,by=c("SPECIES" = "Species"))
-
 DATA.add.sp.com=DATA.add.sp.com%>%
   mutate(TYPE=ifelse(Taxa=='Elasmobranch','Elasmo',
               ifelse(Taxa=='Teleost','Scalefish',
                      NA)))
-
 DATA.add.sp.com=DATA.add.sp.com[,order(names(DATA.add.sp.com))]
 DATA=DATA[,order(names(DATA))]
 DATA=rbind(DATA,DATA.add.sp.com)
-
-#from 2022 on
 
 
 
