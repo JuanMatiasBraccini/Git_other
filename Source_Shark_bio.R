@@ -240,6 +240,16 @@ Scalefish$SPECIES=with(Scalefish,ifelse(SPECIES=="sl.T","SL.T",SPECIES))
 Scalefish$SPECIES=with(Scalefish,ifelse(SPECIES=="sc.T","SC.T",SPECIES)) 
 Scalefish$SPECIES=with(Scalefish,ifelse(SPECIES=="dm.T","DM.T",SPECIES)) 
 
+Scalefish=Scalefish%>%
+            mutate(TL=case_when(TL<17~NA,
+                                SPECIES=="BD.T" & SHEET_NO=="J00925" & TL>200 ~TL/10,
+                                SPECIES=="LF.T" & SHEET_NO=="M00207" & TL>50 ~TL/10,
+                                SPECIES=="TA.T" & SHEET_NO=="BU0041" & TL>120 ~TL/10,
+                                SPECIES=="JE.T" & TL>150 ~TL/10,
+                                SPECIES=="NW.T" & TL>100 ~TL/10,
+                                SPECIES=="QS.T" & TL>110 ~TL/10,
+                                SPECIES=="TV.T" & TL>110 ~TL/10,
+                                TRUE~TL))
 
 #Fix sex
 DATA$SEX=with(DATA,ifelse(SEX=="f","F",ifelse(SEX=="m","M",
@@ -274,16 +284,23 @@ DATA=rbind(DATA,Boat_bio_header_sp)
 #fix temperature
 DATA$TEMP=with(DATA,ifelse(TEMP==2537,25.7,ifelse(TEMP==0,NA,TEMP)))
 
+
 #Convert TL to FL if FL is NA and there is TL info
 DATA=DATA%>%
   mutate(FL=case_when(FL==0~NA,
-                      SHEET_NO=='U00014' & FL<3~280,
+                      SHEET_NO=='U00014' & SPECIES=='TG' & FL<3~FL*10,
+                      SHEET_NO=='R00200'& SPECIES=='HZ' & FL<20~FL*10,
+                      SHEET_NO=='D00102'& SPECIES=='WH' & FL<20~FL*10,
                       TRUE~FL),
-         TL=case_when(TL==0~NA,
-                      SHEET_NO=='U00014' & TL<4~330,
-                      SHEET_NO=='U00113' & TL==2.0~200,
-                      SHEET_NO=='U00013' & TL== 3.0~300,
-                      SHEET_NO=='U00024' & TL==4.5~450,
+         TL=case_when(TL<10~NA,
+                      TL==0~NA,
+                      SHEET_NO=='B00410' & SPECIES=='SC' & TL<12 ~ TL*10,
+                      SHEET_NO=='R00237' & SPECIES=='WW' & TL<14 ~ TL*10,
+                      SHEET_NO=='U00014' & SPECIES=='TG' & TL<4~TL*10,
+                      SHEET_NO=='U00113' & SPECIES=='BW' & TL<20~TL*10,
+                      SHEET_NO=='PA0078' & SPECIES=='WH' & TL<20~TL*10,
+                      SHEET_NO=='U00013' & SPECIES=='TG'& TL<15~TL*10,
+                      SHEET_NO=='U00024' & SPECIES=='WP' & TL<15~TL*10,
                       TRUE~TL))
 DATA=merge(DATA,TL_FL[,match(c("SPECIES","a.intercept","b.slope"),names(TL_FL))],by="SPECIES",all.x=T)
 DATA$TL=with(DATA,ifelse(!is.na(FL) & !is.na(TL) & FL>TL,NA,TL))
@@ -291,6 +308,8 @@ DATA$FL=with(DATA,ifelse(is.na(FL)&!is.na(TL),(TL-a.intercept)/b.slope,FL))
 DATA=DATA[,-match(c("a.intercept","b.slope"),names(DATA))]
 DATA=DATA%>%
         mutate(FL=case_when(FL<=0~NA,
+                            FL>10 & TL>40 & SPECIES=='WC'~NA,
+                            FL<20 & SPECIES=="ER"~NA,
                             TRUE~FL))
 
 #Amend species code to family for species outside reported distribution  
@@ -715,14 +734,14 @@ lost=DATA[grep('lost',tolower(DATA$COMMENTS.hdr)),]%>%
 lost.hooks=lost[grep('hook',tolower(lost$COMMENTS.hdr)),]%>%
   filter(!grepl('PA',SHEET_NO))%>%arrange(date)
 DATA=DATA%>%
-  mutate(N.hooks=ifelse(SHEET_NO=="N00348", (N.hooks-6),
-                 ifelse(SHEET_NO=="S00254", (N.hooks-30),
-                 ifelse(SHEET_NO=="W00115", (N.hooks-30),
-                 ifelse(SHEET_NO=="N00101", (N.hooks-4),
-                 ifelse(SHEET_NO=="N00857", (N.hooks-30),
-                 ifelse(SHEET_NO=="Z00030", (N.hooks-31),
-                 ifelse(SHEET_NO=="W00040", (N.hooks-15),
-                 ifelse(SHEET_NO=="N00353", (N.hooks-2),
+  mutate(N.hooks=ifelse(SHEET_NO=="N00348" & N.hooks==50, (N.hooks-6),
+                 ifelse(SHEET_NO=="S00254" & N.hooks==450, (N.hooks-30),
+                 ifelse(SHEET_NO=="W00115" & N.hooks==50, (N.hooks-30),
+                 ifelse(SHEET_NO=="N00101" & N.hooks==50, (N.hooks-4),
+                 ifelse(SHEET_NO=="N00857" & N.hooks==60, (N.hooks-30),
+                 ifelse(SHEET_NO=="Z00030" & N.hooks==62, (N.hooks-31),
+                 ifelse(SHEET_NO=="W00040" & N.hooks==62, (N.hooks-15),
+                 ifelse(SHEET_NO=="N00353" & N.hooks==50, (N.hooks-2),
                  N.hooks)))))))))
 dummy=c(rep("N00101",2),"N00104",rep("N00110",2),"N00115",rep("N00130",2),"N00135","N00151",
         "N00161","N00162","N00164","N00179","N00184","N00189","N00163")
