@@ -1,5 +1,6 @@
                     #SOURCE CONVENTIONAL TAGGING DATA#
 
+#new: add "FL" in full_join(Tagging,subset( to deal with released recaptures
 
 library(RODBC)    		#library for importing excel data
 library(lubridate)
@@ -13,10 +14,8 @@ library(Hmisc)
   #Sharks.mdb data base
 setwd("M:/Production Databases/Shark") 
 #setwd("//fish.wa.gov.au/Data/Production Databases/Shark") 
-channel <- odbcConnectAccess2007("Sharks v20220906.mdb")  #new database updated by Vero
-#setwd("U:/Shark")  # working directory    
-#setwd("M:/Fisheries Research/Production Databases/Shark")
-
+Dat.Beis<-'Sharks v20240820 UAT.mdb' #new database updated by Vero's team.. Previous: 'Sharks v20220906.mdb'  'Sharks.mdb'
+channel <- odbcConnectAccess2007(Dat.Beis)  
 Tagging=sqlFetch(channel, "Tag data", colnames = F) 
 Boat_hdr=sqlFetch(channel, "Boat_hdr", colnames = F) 
 Boat_bio=sqlFetch(channel, "Boat_bio", colnames = F) 
@@ -213,28 +212,29 @@ Tagging=Tagging%>%
 #      Hence, combine with Boat bio.....
 TL.species=c('ZE','PC','FR','TN','PZ','PM','SR') 
 Boat_bio=Boat_bio%>%
-  dplyr::rename(Tag.no="FINTAG NO",
+        dplyr::rename(Tag.no="FINTAG NO",
                    DARTTAGNO="DART TAG NO",
                    ATAG.NO="ATAG NO",
                    FINTAG.2="FINTAG 2",
                    CONDITION_Boat_bio="RELEASE CONDITION",
                    SEX_Boat_bio=SEX)%>%
-            dplyr::select(SHEET_NO,SPECIES,FL,TL,Tag.no,DARTTAGNO,ATAG.NO,FINTAG.2,
+        mutate(CONDITION_Boat_bio=ifelse(DeadFlag=='Yes',0,CONDITION_Boat_bio))%>%
+        dplyr::select(SHEET_NO,SPECIES,FL,TL,Tag.no,DARTTAGNO,ATAG.NO,FINTAG.2,
                           CONDITION_Boat_bio,SEX_Boat_bio)%>%
-            mutate(DARTTAGNO=ifelse(DARTTAGNO<100,NA,DARTTAGNO),
+        mutate(DARTTAGNO=ifelse(DARTTAGNO<100,NA,DARTTAGNO),
                    Tag.type2=case_when(!is.na(ATAG.NO)~'acoustic',
                                        !is.na(DARTTAGNO) & is.na(Tag.no)~'conventional.dart',
                                        TRUE~'conventional'),
                    Tag.no=ifelse(is.na(Tag.no) & !is.na(DARTTAGNO),paste("D",DARTTAGNO,sep=""),
                                 ifelse(is.na(Tag.no) & !is.na(ATAG.NO),paste("A",ATAG.NO,sep=""),
                                 Tag.no)))%>%
-            filter(!is.na(Tag.no))%>%
-            mutate(Tag.no=tolower(Tag.no))%>%
-  dplyr::rename(SHEET_NO_Boat_bio=SHEET_NO)
+        filter(!is.na(Tag.no))%>%
+        mutate(Tag.no=tolower(Tag.no))%>%
+        dplyr::rename(SHEET_NO_Boat_bio=SHEET_NO)
 
-Tagging=full_join(Tagging,subset(Boat_bio,select=c(SHEET_NO_Boat_bio,SPECIES,TL,Tag.no,
+Tagging=full_join(Tagging,subset(Boat_bio,select=c(SHEET_NO_Boat_bio,SPECIES,TL,FL,Tag.no,
                                                    Tag.type2,CONDITION_Boat_bio,SEX_Boat_bio)),
-                  by=c("SPECIES","Tag.no"))%>%
+                  by=c("SPECIES","Tag.no","FL"))%>%
             mutate(FL=ifelse(is.na(FL) & !is.na(TL) & !SPECIES%in%TL.species,TL*.85,FL),
                    FL=ifelse(SPECIES%in%TL.species,TL,FL),
                    Tag.type=ifelse(is.na(Tag.type)&!is.na(Tag.type2),Tag.type2,Tag.type))%>%
@@ -373,7 +373,7 @@ colnames(Tagging)[match(c("SEX","SPECIES","FL"),names(Tagging))]=
 Tagging$Sex=ifelse(Tagging$Sex%in%c("F","f"),"F",ifelse(Tagging$Sex%in%c("m","M"),"M","U"))
 
 
-#Create usefull variables
+#Create useful variables
 
 #areas
 eachArea=c("JASDGDLF.zone2","JASDGDLF.zone1","WCDGDLF","Closed","WANCSF","JANSF")
@@ -418,7 +418,7 @@ Tagging$CAP_FL=with(Tagging,ifelse(CAP_FL<Rel_FL,NA,CAP_FL))
 
 
 #Add species full name
-Tagging=left_join(Tagging,Species.Codes,by="Species")
+Tagging=left_join(Tagging,Species.Codes%>%distinct(Species,.keep_all = T),by="Species")
 
 
 #Remove unknown species
@@ -570,3 +570,20 @@ Tagging$Unico=with(Tagging,paste(Tag.no,Species,Rel_FL))
 ind=which(duplicated(Tagging$Unico)==T)
 Dup.Tags=Tagging$Unico[ind]
 if(length(Dup.Tags)>0)Tagging=Tagging[!(duplicated(Tagging$Unico)),-match("Unico",names(Tagging))]
+
+
+#Fix dodgy lats and longs
+Tagging$Lat.rels=with(Tagging,ifelse(Species=="BW" & Long.rels<114 & Lat.rels>-17.7,-21.765,Lat.rels))
+Tagging=Tagging%>%
+          mutate(Lat.rels=case_when(SHEET_NO=='m00087' & Lat.rels>(-22)~ -23.048,
+                                    SHEET_NO=='m00239' & Lat.rels<(-18)~ -18.45,
+                                    TRUE~Lat.rels),
+                 Long.rels=case_when(SHEET_NO=='r00863' & Long.rels>(112)~ 112.78,
+                                    TRUE~Long.rels),
+                 Long.rec=case_when(SHEET_NO=='t00207' & Long.rec<(100)~ 115.3,
+                                    SHEET_NO=='t00003' & Long.rec<(113)~ 115.35,
+                                     TRUE~Long.rec),
+                 Lat.rec=case_when(SHEET_NO=='n00409' & Lat.rec>(-22) & Lat.rec<(-20)~ -18.4,
+                                    TRUE~Lat.rec))
+  
+

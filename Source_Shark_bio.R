@@ -3,8 +3,6 @@
 #notes:
 #       Every new year: update 'Manually add lost species and subtract lost hooks'
 
-#MISSING: TOs to add species only reported in Boat_header comments
-
 library(RODBC)
 library(lunar)   #moon phases
 library(lubridate)
@@ -708,7 +706,7 @@ DATA.bio$SPECIES=with(DATA.bio,ifelse(SHEET_NO=="PA0031" & SPECIES=="DW.T","BW",
 #Manually add lost species and subtract lost hooks (survey only, done in PA script for PA shots) 
 #note:  this was entered only in comments for each new year
 #       some are already deducted by data person entry, so those changed here are the ones not deducted by data person
-upto=as.Date("2022-07-15")
+upto=as.Date("2024-06-29")
 
 lost=DATA[grep('lost',tolower(DATA$COMMENTS.hdr)),]%>%
   filter(Method=='LL')%>%
