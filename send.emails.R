@@ -1,5 +1,5 @@
 
-#devtools::install_github("dkyleward/RDCOMClient")
+#devtools::install_github("omegahat/RDCOMClient")
 
 # Load the DCOM library
 library(RDCOMClient)

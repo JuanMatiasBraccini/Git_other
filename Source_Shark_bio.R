@@ -16,8 +16,9 @@ options(stringsAsFactors = FALSE)
 setwd("M:/Production Databases/Shark") #updated 16/10/2023
 #setwd("//fish.wa.gov.au/Data/Production Databases/Shark") 
 #setwd("U:/Shark")
-Dat.Beis<-'Sharks v20240820 UAT.mdb' #new database updated by Vero's team
-#Dat.Beis<-'Sharks v20220906.mdb'
+#Dat.Beis<-'Sharks v20240917.mdb' #new database updated by Vero's team
+#Dat.Beis<-'Sharks v20240820 UAT.mdb'
+Dat.Beis<-'Sharks v20220906.mdb'
 #Dat.Beis<-'Sharks.mdb'
 
 channel <- odbcConnectAccess2007(Dat.Beis)  
@@ -29,7 +30,7 @@ close(channel)
 if(!exists('handl_OneDrive')) source('C:/Users/myb/OneDrive - Department of Primary Industries and Regional Development/Matias/Analyses/SOURCE_SCRIPTS/Git_other/handl_OneDrive.R')
 
 #Species names
-SPECIES.names=read.csv(handl_OneDrive("Data/Species.code.csv"))
+SPECIES.names=read.csv(handl_OneDrive("Data/Species.code.csv"),stringsAsFactors=FALSE, fileEncoding="latin1")
 
 
 #Species historically recorded in Boat header comments

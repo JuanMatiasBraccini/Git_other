@@ -1,180 +1,7 @@
-#Missing
-# Q15 reduce occupations to a tangible number of categories and use in analysis (see 'Use.Q15')
-
-library(tidyverse)
-library(readxl)
-library(Hmisc)
-library(ggpubr)
-require(foreign)
-require(MASS)
-require(reshape2)
-require(nnet)
-require(grid) 
-
-# Input data --------------------------------------------------------------------
-
-User="Matias"
-# User="Robiul"
-if(!exists('handl_OneDrive'))
-{
-  if(User=="Matias") source('C:/Users/myb/OneDrive - Department of Primary Industries and Regional Development/Matias/Analyses/SOURCE_SCRIPTS/Git_other/handl_OneDrive.R')
-  
-  if(User=="Robiul")
-  {
-    handl_OneDrive=function(x)paste('C:/Users',Usr,'OneDrive - Department of Primary Industries and Regional Development/Matias',x,sep='/')
-  }
-}
-
-Snowball.survey <- read_excel(handl_OneDrive("Students/2021_Robiul Hasan/4. Questionnaire/Data/Seafood labelling - Snowball_October 21, 2024_01.05.xlsx"),
-                                sheet = "Sheet0",skip = 1,col_names = TRUE)
-Snowball.survey.header <- read_excel(handl_OneDrive("Students/2021_Robiul Hasan/4. Questionnaire/Data/Seafood labelling - Snowball_October 21, 2024_01.05.xlsx"),
-                              sheet = "Sheet0",skip = 0,col_names = TRUE,n_max=1)
-
-Qualtrix.survey <- read_excel(handl_OneDrive("Students/2021_Robiul Hasan/4. Questionnaire/Data/Seafood labelling - Market_May 30, 2024_05.57.xlsx"),
-                              sheet = "Sheet0",skip = 1,col_names = TRUE)
-Qualtrix.survey.header <- read_excel(handl_OneDrive("Students/2021_Robiul Hasan/4. Questionnaire/Data/Seafood labelling - Market_May 30, 2024_05.57.xlsx"),
-                                     sheet = "Sheet0",skip = 0,col_names = TRUE,n_max=1)
-
-data.set.used.in.analysis='Qualtrix'  #c('Qualtrix','Snowball')
-
-Percent.imported.seafood=c(70,75) #Senior, N., Stewardson, C. (2019). Promoting sustainable Australian fish and seafood. Food Australia, 71(2): 35–37
-
-# Manipulate data --------------------------------------------------------------------
-#note Qualtrix.survey$gc=1 #complete surveys
-a=unlist(Snowball.survey.header)
-Snowball.survey.header=data.frame(Link=names(a),Question=a,Snowball.survey.name=colnames(Snowball.survey))
-colnames(Snowball.survey)=Snowball.survey.header$Link
-
-a=unlist(Qualtrix.survey.header)
-Qualtrix.survey.header=data.frame(Link=names(a),Question=a,Snowball.survey.name=colnames(Qualtrix.survey))
-colnames(Qualtrix.survey)=Qualtrix.survey.header$Link
-
-Snowball.survey=Snowball.survey%>%
-                  mutate(Q4=extract_numeric(Q4),
-                         gc=NA)
-
-dis.Qualtrix=Qualtrix.survey[,colnames(Qualtrix.survey)[grep(paste(colnames(Snowball.survey),collapse='|'),colnames(Qualtrix.survey))]]
-dis.Snowball=Snowball.survey%>%
-              dplyr::select(colnames(dis.Qualtrix))
-
-
-combined.data=rbind(dis.Qualtrix%>%mutate(Survey='Qualtrix'),
-                    dis.Snowball%>%mutate(Survey='Snowball'))%>%
-      data.frame%>%
-      mutate(Q12_6_TEXT=ifelse(Q12_6_TEXT=="Alpha male","Male",Q12_6_TEXT),
-             Q12=case_when(Q12=='Prefer self-describe (write in an option)'~Q12_6_TEXT,
-                           Q12=="Man"~"Male",
-                           Q12=="Woman"~"Female",
-                           Q12=="Gender non-conforming"~"Non-binary",
-                           is.na(Q12)~"Prefer not to disclose",
-                           TRUE~Q12),
-             Q12=factor(Q12,levels=c("Female","Male")),
-             Q13=case_when(is.na(Q13)~"Prefer not to say",
-                           TRUE~Q13),
-             Q13=factor(Q13,levels=c("Less than 20","21-40","41-60","Over 60")),
-             Q14=case_when(is.na(Q14)~"Prefer not to say",
-                           Q14%in%c("Primary school","Secondary school") ~"School",
-                           Q14== "TAFE/trade" ~"TAFE",
-                           Q14== "University bachelor's degree" ~"Undergraduate",
-                           Q14== "University higher degree (Master's or PhD)" ~"Postgraduate",
-                           TRUE~Q14),
-             Q14=factor(Q14,levels=c("School","TAFE","Undergraduate","Postgraduate")),
-             Q16=case_when(is.na(Q16)~"Prefer not to say",
-                           TRUE~Q16),
-             Q17=case_when(is.na(Q17)~"Prefer not to say",
-                           TRUE~Q17),
-             Q18=capitalize(tolower(Q18)),
-             Q18=ifelse(Q18%in%c("Nil","-",'????????????',"Au","Australia","Austrlia","N/a","No",
-                                 "Nowhere","Victoria","Yes","Qld","Qld","Not applicable","2753","4000",
-                                 "Been in australia since primary", "I didn't know i'd been in australia",
-                                 "I live in perth","I'm living in australia","Na","Nil","None","North korea",
-                                 "Sydney"),NA,Q18),
-             Q18=case_when(Q18=="Uk"~"UK",
-                           Q18=="South korea"~"South Korea",
-                           Q18%in%c("New zealand","New zeland")~"New Zealand",
-                           Q18%in%c("Srilanka","Sri lanka")~"Sri Lanka",
-                           TRUE~Q18),
-             Q4=case_when(Q4%in%c("Sixty percent","60 percent","60 pr cent")~'60',
-                          Q4=="70 percent"~'70',
-                          Q4=="over70%"~'75',
-                          Q4=="5p%"~'5',
-                          Q4=="about 80 percent comes from overseas"~'80',
-                          Q4=="I think it would be around 55%"~'55',
-                          Q4%in%c("50 per cent .","about 50 % maybe.")~'50',
-                          Q4%in%c("at least forty","around 40%?","At least 40 percent")~'40',
-                          Q4=="Thirty percent"~'30',
-                          Q4%in%c("probably 60 plus","More than half. 65%")~'65',
-                          Q4=="I think Australian seafood is mainly caught domestically"~'0',
-                          Q4%in%c("May be unethical due to unknown treatment of seafood","Not sure",
-                                  "To much to be honest it's not hard to catch it","I have no clue",
-                                  "It is too costly for Australia not to import","I don't know",
-                                  "Yes","The only way I could do that was if you wanted it",
-                                  "I wonder why it isnt from australia","All good.","unknown",
-                                  "I don't mind at all.","A low percentage","i dont know",
-                                  "Mindell cons","dont know","Not dure","Too much","Don't know",
-                                  "Same amount","Don't know","not sure","DO NOT KNOW","Like",
-                                  "I believe that imported seafood is nowhere near the quality of Australian seafood.",
-                                  "no idea","I only buy fresh fish from Western Australia","concerned","200","Idk",
-                                  "good info","Dont know","Do not know","Unsure","I don't know")~"Do not know",
-                           TRUE~Q4),
-             Q4=str_remove(Q4, '%'),
-             Q4=as.numeric(Q4),
-             Q4=10*round(Q4/10),
-             Q4=as.character(Q4),
-             Q4=ifelse(is.na(Q4),'No answer',Q4),
-             Q7_1=case_when(is.na(Q7_1)~"Unsure/unable to answer",
-                            TRUE~Q7_1),
-             Q8=gsub("\\s*\\([^\\)]+\\)","",Q8),
-             Q8=case_when(is.na(Q8) | Q8=='None of the above or prefer not to answer'~"Prefer not to say",
-                          TRUE~Q8),
-             Q8=str_remove(Q8, 'The '),
-             Q8=capitalize(Q8),
-             Q9_1=case_when(Q9_1=='Not conerned'~'Not concerned',
-                            is.na(Q9_1)~"Unsure/unable to answer",
-                            TRUE~Q9_1),
-             Q10=gsub("\\s*\\([^\\)]+\\)","",Q10),
-             Q10=case_when(is.na(Q10) | Q10=='None of the above or prefer not to answer'~"Prefer not to say",
-                          TRUE~Q10),
-             Q10=str_remove(Q10, 'The '),
-             Q10=capitalize(Q10),
-             Q11_1=case_when(is.na(Q11_1) | Q11_1=='Unsure/Unable to answer'~"Unsure/unable to answer",
-                            TRUE~Q11_1),
-             Q11_2=case_when(is.na(Q11_2)| Q11_2=='Unsure/Unable to answer'~"Unsure/unable to answer",
-                             TRUE~Q11_2),
-             Q11_3=case_when(is.na(Q11_3)| Q11_3=='Unsure/Unable to answer'~"Unsure/unable to answer",
-                             TRUE~Q11_3),
-             Q11_4=case_when(is.na(Q11_4)| Q11_4=='Unsure/Unable to answer'~"Unsure/unable to answer",
-                             TRUE~Q11_4),
-             Q11_5=case_when(is.na(Q11_5)| Q11_5=='Unsure/Unable to answer'~"Unsure/unable to answer",
-                             TRUE~Q11_5),
-             Q11_6=case_when(is.na(Q11_6)| Q11_6=='Unsure/Unable to answer'~"Unsure/unable to answer",
-                             TRUE~Q11_6),
-             Q11_7=case_when(is.na(Q11_7)| Q11_7=='Unsure/Unable to answer'~"Unsure/unable to answer",
-                             TRUE~Q11_7),
-             Q11_8=case_when(is.na(Q11_8)| Q11_8=='Unsure/Unable to answer'~"Unsure/unable to answer",
-                             TRUE~Q11_8),
-             Q11_9=case_when(is.na(Q11_9)| Q11_9=='Unsure/Unable to answer'~"Unsure/unable to answer",
-                             TRUE~Q11_9),
-             Q11_10=case_when(is.na(Q11_10)| Q11_10=='Unsure/Unable to answer'~"Unsure/unable to answer",
-                             TRUE~Q11_10),
-             Q11_11=case_when(is.na(Q11_11)| Q11_11=='Unsure/Unable to answer'~"Unsure/unable to answer",
-                             TRUE~Q11_11),
-             Q11_12=case_when(is.na(Q11_12)| Q11_12=='Unsure/Unable to answer'~"Unsure/unable to answer",
-                             TRUE~Q11_12),
-             Q15=tolower(Q15),
-             Q15=case_when(grepl('unemployed',Q15)~"unemployed",
-                           Q15%in%c("unable to work","unemlpoyed","unemployed","unable to work due to spinal injuries")~'unemployed',
-                           Q15%in%c("retired academic","retired research biologist")~"research/academia",
-                           grepl('retired',Q15)~"retired",
-                           Q15%in%c("tetired")~"retired",
-                           is.na(Q15)~"Prefer not to disclose",
-                           TRUE~Q15)
-      )
-
-
 # Create list of related questions -------------------------------------------------------------------- 
+data.set.used.in.analysis='Snowball'
 use.this.data.set=combined.data%>%    
-                    filter(Survey%in%data.set.used.in.analysis)
+  filter(Survey%in%data.set.used.in.analysis)
 
 
 Predictors=c('Survey',paste0('Q',12:18))
@@ -266,16 +93,16 @@ Res.vars=list(Q1_='Question.short',
               Q11_='Answer')
 
 Right.Answer=list(Q1_='',
-              Q2_='',
-              Q3_='',
-              Q4_="70",
-              Q5_="Gummy shark or rig",
-              Q6_='',
-              Q7_='',  
-              Q8_='',
-              Q9_='',
-              Q10_='',
-              Q11_='')
+                  Q2_='',
+                  Q3_='',
+                  Q4_="70",
+                  Q5_="Gummy shark or rig",
+                  Q6_='',
+                  Q7_='',  
+                  Q8_='',
+                  Q9_='',
+                  Q10_='',
+                  Q11_='')
 
 Mod.Type=list(Q1_='ordinal.logistic.reg',
               Q2_='multinomial.logistic.reg',
@@ -299,7 +126,7 @@ LENGTH=list(Q1_=8,Q2_=8,Q3_=8,Q4_=7,Q5_=7,Q6_=7,Q7_=7,Q8_=7,Q9_=7,Q10_=7,Q11_=7)
 
 # display distribution of responses --------------------------------------------------------------------
 theme_PA=function(Ttl.siz=18,Sbt.siz=16,str.siz=12,strx.siz=12,
-         cap.siz=10,lgT.siz=14,leg.siz=12,axs.t.siz=11,axs.T.siz=16)
+                  cap.siz=10,lgT.siz=14,leg.siz=12,axs.t.siz=11,axs.T.siz=16)
 {
   #font<-windowsFonts("Arial" = windowsFont("Arial"))
   #font="Arial"  #"TT Courier New"  "TT Arial"  "TT Times New Roman"
@@ -374,7 +201,7 @@ theme_PA=function(Ttl.siz=18,Sbt.siz=16,str.siz=12,strx.siz=12,
 }
 
 
-HNDL=handl_OneDrive('Students/2021_Robiul Hasan/4. Questionnaire/Outputs/')
+HNDL=handl_OneDrive('Students/2021_Robiul Hasan/4. Questionnaire/Outputs_Supplement/')
 le.paste=function(x) paste(HNDL,x,sep='')
 
 display.q=function(DATA,QQ,METADATA,levls,XLAB,YLAB,show.answer,drop.answers,coded.answer,
@@ -397,33 +224,33 @@ display.q=function(DATA,QQ,METADATA,levls,XLAB,YLAB,show.answer,drop.answers,cod
     filter(!is.na(Answer))
   
   metadat=METADATA[idMeta,1:2]%>%
-            mutate(Question.short=sub('.*- ', '', Question))
+    mutate(Question.short=sub('.*- ', '', Question))
   dat=dat%>%
     left_join(metadat,by='Link')
   
   specified_TEXT=dat%>%filter(grepl('_TEXT',Link))%>%
-                  mutate(Question.short1=Answer,
-                         Link=sub('_TEXT', '', Link),
-                         Link=sub('_8', '', Link),
-                         Link=sub('_20', '', Link))%>%
-                  dplyr::select(ResponseId,Link,Question.short1)
+    mutate(Question.short1=Answer,
+           Link=sub('_TEXT', '', Link),
+           Link=sub('_8', '', Link),
+           Link=sub('_20', '', Link))%>%
+    dplyr::select(ResponseId,Link,Question.short1)
   dat=dat%>%
     filter(!grepl('_TEXT',Link))
   dat=left_join(dat,specified_TEXT,by=c('ResponseId','Link'))%>%
     mutate(Question.short=ifelse(Question.short=='Other please specify',Question.short1,Question.short))%>%
     dplyr::select(ResponseId,Link,Answer,Question.short,Question.short1)%>%
     filter(!grepl('Other',Question.short))
-
+  
   dat=dat%>%
-        mutate(Question.short=gsub("\\s*\\([^\\)]+\\)","",Question.short))
-
+    mutate(Question.short=gsub("\\s*\\([^\\)]+\\)","",Question.short))
+  
   if(!is.null(drop.answers))
   {
     dat=dat%>%
       filter(!grepl("please explain",Question.short))%>%
       filter(!grepl("please",Answer))
   }
-
+  
   comma.split=dat%>%filter(grepl(",",Answer))
   if(nrow(comma.split)>0)
   {
@@ -437,7 +264,7 @@ display.q=function(DATA,QQ,METADATA,levls,XLAB,YLAB,show.answer,drop.answers,cod
                              Link=comma.split$Link[nn],
                              Question.short=comma.split$Question.short[nn],
                              Question.short1=comma.split$Question.short1[nn])%>%
-                      relocate(names(comma.split[nn,]))
+        relocate(names(comma.split[nn,]))
     }
     dat=rbind(dat,do.call(rbind,dumi))
   }
@@ -450,12 +277,12 @@ display.q=function(DATA,QQ,METADATA,levls,XLAB,YLAB,show.answer,drop.answers,cod
     {
       dat=dat%>%
         mutate(Answer=recode(Answer, 
-             "Not concerned" = "Not\nconcerned",
-             "Slightly concerned"="Slightly\nconcerned",
-             "Moderately concerned"="Moderately\nconcerned",
-             "Very concerned"="Very\nconcerned",
-             "Extremely concerned"="Extremely\nconcerned",
-             "Unsure/unable to answer"="Unsure/unable\n to answer"))
+                             "Not concerned" = "Not\nconcerned",
+                             "Slightly concerned"="Slightly\nconcerned",
+                             "Moderately concerned"="Moderately\nconcerned",
+                             "Very concerned"="Very\nconcerned",
+                             "Extremely concerned"="Extremely\nconcerned",
+                             "Unsure/unable to answer"="Unsure/unable\n to answer"))
     }
     
     if("Strongly agree"%in%levels(dat$Answer))
@@ -501,8 +328,8 @@ display.q=function(DATA,QQ,METADATA,levls,XLAB,YLAB,show.answer,drop.answers,cod
     Tabl=dat%>%group_by(Answer)%>%tally()%>%arrange(-n)%>%data.frame%>%mutate(Cum=cumsum(n),Cu.percent=Cum/sum(n))
     common.product=Tabl%>%filter(Cu.percent<0.98)%>%pull(Answer)
     dat=dat%>%
-          mutate(Answer.old=Answer,
-                 Answer=ifelse(!Answer%in%common.product,'Other',Answer))
+      mutate(Answer.old=Answer,
+             Answer=ifelse(!Answer%in%common.product,'Other',Answer))
   }
   
   if("Q3_"%in%QQ) dat=dat%>%filter(Answer%in%1:5)
@@ -526,7 +353,7 @@ display.q=function(DATA,QQ,METADATA,levls,XLAB,YLAB,show.answer,drop.answers,cod
   {
     Ncols=1
     if(length(unique(dat$Question.short))>6) Ncols=2
-
+    
     if(any("Q1_"%in%QQ,"Q3_"%in%QQ))
     {
       p=dat%>%
@@ -547,7 +374,7 @@ display.q=function(DATA,QQ,METADATA,levls,XLAB,YLAB,show.answer,drop.answers,cod
       {
         dat=dat%>%mutate(FILL=as.factor(1))
       }
-         
+      
       p=dat%>%
         filter(!is.na(Question.short))%>%
         ggplot(aes(Answer))+
@@ -580,7 +407,7 @@ display.q=function(DATA,QQ,METADATA,levls,XLAB,YLAB,show.answer,drop.answers,cod
         geom_bar(position = "dodge")+
         scale_x_discrete(drop = FALSE)
     }
-
+    
     if(!is.null(coded.answer))p=p+coord_flip()
   }
   p=p+theme_PA(strx.siz=STRIP.size)+
@@ -594,8 +421,8 @@ display.q=function(DATA,QQ,METADATA,levls,XLAB,YLAB,show.answer,drop.answers,cod
   
   #Data for Stats  
   d.stats=dat%>%
-            left_join(DATA[,c(match(c('ResponseId',Preds),names(DATA)))],
-                      by='ResponseId')%>%
+    left_join(DATA[,c(match(c('ResponseId',Preds),names(DATA)))],
+              by='ResponseId')%>%
     filter(!is.na(Q12))%>%
     filter(!is.na(Q14))%>%
     filter(!Q13=='Prefer not to say')
@@ -603,10 +430,10 @@ display.q=function(DATA,QQ,METADATA,levls,XLAB,YLAB,show.answer,drop.answers,cod
   
   #Return stuff
   return(list(Tabl=Tabl,d.stats=d.stats))
-
+  
 }
 
-    #Overall
+#Overall
 Store.dat=vector('list',length(Q.list))
 names(Store.dat)=names(Q.list)
 for(i in 1:length(Q.list))
@@ -634,7 +461,7 @@ for(i in 1:length(Q.list))
   Store.dat[[i]]=x
 }
 
-    #By predictor (all predictors in single figure)
+#By predictor (all predictors in single figure)
 do.this=FALSE
 if(do.this)
 {
@@ -806,7 +633,7 @@ for(i in 1:length(Q.list))
       dd$response=droplevels(dd$response)
     }
     if(is.character(dd$response)) dd$response=as.factor(dd$response)
-
+    
     if(model.type%in%c('multinomial.logistic.reg','ordinal.logistic.reg'))
     {
       #fit model
@@ -821,7 +648,7 @@ for(i in 1:length(Q.list))
         WD=14
         AnglE=90
       }
-        
+      
       dd%>%
         ggplot(aes(x = response)) +
         geom_bar(aes(fill=Q14)) +
@@ -882,7 +709,7 @@ for(i in 1:length(Q.list))
       dis.preds=ANOVA%>%filter(Pr..Chisq.<0.05)%>%rownames()
       if(length(dis.preds)>0 & length(dis.preds)<length(Predictors))
       {
-         a=lnewdat%>%
+        a=lnewdat%>%
           group_by_at(c('Level',dis.preds))%>%
           summarise(Probability=mean(Probability))
         Kls=colnames(a)[which(!colnames(a)%in%c('Probability','Level'))]
@@ -1020,7 +847,7 @@ for(i in 1:length(Q.list))
     
     #export anova table
     write.csv(Summary.stats, le.paste(paste0("Stats/",Q.out,names(d.stats.list)[j],"_","model summary.csv")), 
-                row.names = TRUE)
+              row.names = TRUE)
     write.csv(ANOVA, le.paste(paste0("Stats/",Q.out,names(d.stats.list)[j],"_","ANOVA.csv")), 
               row.names = TRUE)
     
