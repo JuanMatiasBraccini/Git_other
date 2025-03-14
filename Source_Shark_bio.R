@@ -358,12 +358,18 @@ for(i in 1:length(add.these.cols))
 }
 
 DATA=DATA[,match(names(Scalefish),names(DATA))]
-
-
+ 
+DATA=DATA%>%mutate(SPECIES=case_when(SPECIES=='SH' & SHEET_NO=="PA0039"~'HH',  #fixing Abbey's stuff up
+                                     SPECIES=='SR' & SHEET_NO=="PA0107"~'SG',
+                                     SPECIES=='LJ' & SHEET_NO=="PA0090"~'PJ',
+                                     TRUE~SPECIES))
+Scalefish=Scalefish%>%mutate(SPECIES=case_when(SPECIES=='LJ.T' & SHEET_NO=="PA0090"~'PJ',
+                                     TRUE~SPECIES))
 
 #Combine shark and scalefish datasets
 DATA$TYPE="Elasmo"
-Scalefish$TYPE="Scalefish"
+Scalefish=Scalefish%>%
+            mutate(TYPE=ifelse(SPECIES=='PJ',"Elasmo","Scalefish"))
 
 DATA$SPECIES=with(DATA,ifelse(SPECIES=="JE","JE.T",SPECIES))
 DATA$TYPE=with(DATA,ifelse(SPECIES=="JE.T","Scalefish",TYPE))
