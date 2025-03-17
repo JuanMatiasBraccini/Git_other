@@ -359,11 +359,27 @@ for(i in 1:length(add.these.cols))
 
 DATA=DATA[,match(names(Scalefish),names(DATA))]
  
-DATA=DATA%>%mutate(SPECIES=case_when(SPECIES=='SH' & SHEET_NO=="PA0039"~'HH',  #fixing Abbey's stuff up
+DATA=DATA%>%mutate(SPECIES=case_when(SPECIES=='SH' & SHEET_NO=="PA0039"~'HS',  #fixing Abbey's stuff up
                                      SPECIES=='SR' & SHEET_NO=="PA0107"~'SG',
                                      SPECIES=='LJ' & SHEET_NO=="PA0090"~'PJ',
                                      TRUE~SPECIES))
-Scalefish=Scalefish%>%mutate(SPECIES=case_when(SPECIES=='LJ.T' & SHEET_NO=="PA0090"~'PJ',
+Scalefish=Scalefish%>%
+            mutate(SPECIES=case_when(SPECIES=='LJ.T' & SHEET_NO=="PA0090"~'PJ',
+                                     SHEET_NO=='PA0019' & SPECIES=='XX.T' & NewComments=="Rockfish"~'WB.T',
+                                     SHEET_NO=='PA0039' & SPECIES=='XX.T' & NewComments=="Remora"~'SF.T',
+                                     SHEET_NO=='PA0045' & SPECIES=='XX.T' & grepl('Crayfish',NewComments)~'WL',
+                                     SHEET_NO=='PA0043' & SPECIES=='XX.T' & grepl('Porcupine',NewComments)~'GL.T',
+                                     SHEET_NO=='PA0052' & SPECIES=='XX.T' & grepl('Black rockfish',NewComments)~'WB.T',
+                                     SHEET_NO%in%c('PA0139','PA0056','PA0147') & SPECIES=='XX.T' & grepl('wrasse',tolower(NewComments))~'BW.T',
+                                     SHEET_NO=='PA0055' & SPECIES=='XX.T' & grepl('BOX FISH',NewComments)~'WH.T',
+                                     SHEET_NO=='PA0069' & SPECIES=='XX.T' & grepl('WOLF EEL',NewComments)~'GM.T',
+                                     SHEET_NO=='PA0084' & SPECIES=='XX.T' & grepl('Globe fish',NewComments)~'GL.T',
+                                     SHEET_NO=='PA0085' & SPECIES=='XX.T' & grepl('BAILER SNAIL',NewComments)~NA,
+                                     SHEET_NO=='PA0106' & SPECIES=='XX.T' & grepl('Squirrel',NewComments)~'SQ.T',
+                                     SHEET_NO=='PA0141' & SPECIES=='XX.T' & grepl('Copper fish',NewComments)~'NW.T',
+                                     SHEET_NO=='PA0147' & SPECIES=='XX.T' & grepl('Wirrah',NewComments)~'WW.T',
+                                     SHEET_NO=='PA0147' & SPECIES=='XX.T' & grepl('Eel',NewComments)~'GM.T',
+                                     SHEET_NO=='PA0155' & SPECIES=='XX.T' & grepl('Dentex',NewComments)~'DC.T',
                                      TRUE~SPECIES))
 
 #Combine shark and scalefish datasets
