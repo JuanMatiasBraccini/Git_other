@@ -14,7 +14,8 @@ library(Hmisc)
   #Sharks.mdb data base
 setwd("M:/Production Databases/Shark") 
 #setwd("//fish.wa.gov.au/Data/Production Databases/Shark") 
-Dat.Beis<-'Sharks v20240820 UAT.mdb' #new database updated by Vero's team.. Previous: 'Sharks v20220906.mdb'  'Sharks.mdb'
+Dat.Beis<-'Sharks v20220906.mdb'
+#Dat.Beis<-'Sharks v20240820 UAT.mdb' #new database updated by Vero's team.. Previous: 'Sharks v20220906.mdb'  'Sharks.mdb'
 channel <- odbcConnectAccess2007(Dat.Beis)  
 Tagging=sqlFetch(channel, "Tag data", colnames = F) 
 Boat_hdr=sqlFetch(channel, "Boat_hdr", colnames = F) 
@@ -45,7 +46,7 @@ GummySA=read.csv("Terry_data/OutWA.intoWA.csv")
 
 
 #Species codes 
-Species.Codes=read.csv(handl_OneDrive("Data/Species.code.csv"))     
+Species.Codes=read.csv(handl_OneDrive("Data/Species.code.csv"),stringsAsFactors=FALSE, fileEncoding="latin1")
 Species.Size.Range=read.csv(handl_OneDrive("Data/Species.Size.Range.csv"))      
 
 
