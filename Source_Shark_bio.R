@@ -209,14 +209,12 @@ Scalefish=merge(Scalefish,Use.full.boat.hdr,by="SHEET_NO",all.x=T)
 names(Scalefish)[match("Line no",names(Scalefish))]="LINE_NO"
 Scalefish$FL=NA
 
-
 Scalefish=subset(Scalefish,!is.na(SPECIES))
 
 Scalefish$SPECIES=paste(Scalefish$SPECIES,".T",sep="")
 
-
 DATA$SPECIES=with(DATA,ifelse(SPECIES=="se","SE",ifelse(SPECIES=="tk","TK",
-                 ifelse(SPECIES=="wr","WR",ifelse(SPECIES=="ww","WW",SPECIES)))))
+                       ifelse(SPECIES=="wr","WR",ifelse(SPECIES=="ww","WW",SPECIES)))))
 DATA$SPECIES=with(DATA,ifelse(SPECIES=="wd","WD",SPECIES))
 DATA$SPECIES=with(DATA,ifelse(SPECIES%in%c("dw","DW"),"BW",SPECIES))
 DATA$SPECIES=with(DATA,ifelse(SPECIES=="bw","BW",SPECIES)) 
@@ -325,7 +323,52 @@ DATA=DATA%>%
 DATA=DATA%>%
   mutate(SPECIES=ifelse(SPECIES=='GH' & SHEET_NO=='I00842','HG',SPECIES))
 
-#Create Biological data dataframe
+
+#Manually add lost species and subtract lost hooks  
+
+#note:  'lost hooks' or 'lost species' was entered only in the comments. 
+#       Some records already deducted by data person entry so only change here records not amended by data entry person.
+#       Don't do for Parks Australia shots, this is done in PA script
+
+upto=as.Date("2024-06-29")  #manually fix records after this date in case_when() and 'Add.sp'
+
+lost=DATA[grep('lost',tolower(DATA$COMMENTS.hdr)),]%>%
+          filter(Method=='LL')%>%
+          distinct(SHEET_NO,date,COMMENTS.hdr)%>%
+          filter(date>upto)
+  #hooks
+lost.hooks=lost[grep('hook',tolower(lost$COMMENTS.hdr)),]%>%
+            filter(!grepl('PA',SHEET_NO))%>%arrange(date)
+DATA=DATA%>%
+  mutate(N.hooks.deployed=N.hooks,
+         N.hooks=case_when(SHEET_NO=="N00348" & N.hooks==50 ~ (N.hooks-6),
+                           SHEET_NO=="S00254" & N.hooks==450 ~ (N.hooks-30),
+                           SHEET_NO=="W00115" & N.hooks==50 ~ (N.hooks-30),
+                           SHEET_NO=="N00101" & N.hooks==50 ~ (N.hooks-4),
+                           SHEET_NO=="N00857" & N.hooks==60 ~ (N.hooks-30),
+                           SHEET_NO=="I00798" & N.hooks==50 ~ (N.hooks-15),
+                           SHEET_NO=="N00630" & N.hooks==50 ~ (N.hooks-35),
+                           SHEET_NO=="N00582" & N.hooks==50 ~ (N.hooks-31),
+                           SHEET_NO=="Z00030" & N.hooks==62 ~ (N.hooks-31),
+                           SHEET_NO=="W00040" & N.hooks==62 ~ (N.hooks-20),
+                           SHEET_NO=="N00353" & N.hooks==50 ~ (N.hooks-2),
+                           TRUE~N.hooks),
+         N.hooks.lost=N.hooks.deployed-N.hooks)
+  #species
+Add.sp=data.frame(SHEET_NO=c(rep("N00101",2),"N00104",rep("N00110",2),"N00115",rep("N00130",2),"N00135","N00151",
+                             "N00161","N00162","N00164","N00179","N00184","N00189","N00163"),
+                  SPECIES=c(rep('TK',2),rep('TG',2),'TK',rep('TK',11),'MI'),
+                  TL=c(rep(NA,2),rep(300,2),NA,rep(NA,11),NA))
+
+DATA.add.sp.com=DATA[1:nrow(Add.sp),]%>%
+                        mutate(across(everything(), ~NA),
+                               SHEET_NO=Add.sp$SHEET_NO,
+                               SPECIES=Add.sp$SPECIES,
+                               TL=Add.sp$TL)
+DATA=rbind(DATA,DATA.add.sp.com)
+
+
+#Create Biological data frame
 keep.biol=c("SHEET_NO","SPECIES","date","TL","FL","PL","SEX","RELEASE CONDITION","UMBIL_SCAR", "NO_DISCARDS",
             "CLASPLENTH","CLASP_CALC","GON_STAGE","RUN_SPERM","MAXOVRYDIA","NO_YOLKOVA","UTERINESTG","NO_EMBRYOS",
             "NO_UNDEVELOPED","EMBLEN_1","EMBLEN_2","EMBLEN_3","EMBLEN_4","EMBLEN_5","EMBLEN_6","EMBLEN_7","EMBLEN_8",
@@ -745,51 +788,6 @@ DATA$SPECIES=with(DATA,ifelse(SHEET_NO=="PA0031" & SPECIES=="DW.T","BW",SPECIES)
 DATA.ecosystems$SPECIES=with(DATA.ecosystems,ifelse(SHEET_NO=="PA0031" & SPECIES=="DW.T","BW",SPECIES))
 DATA.bio$SPECIES=with(DATA.bio,ifelse(SHEET_NO=="PA0031" & SPECIES=="DW.T","BW",SPECIES))
 
-#Manually add lost species and subtract lost hooks (survey only, done in PA script for PA shots) 
-#note:  this was entered only in comments for each new year
-#       some are already deducted by data person entry, so those changed here are the ones not deducted by data person
-upto=as.Date("2024-06-29")
-
-lost=DATA[grep('lost',tolower(DATA$COMMENTS.hdr)),]%>%
-  filter(Method=='LL')%>%
-  distinct(SHEET_NO,date,COMMENTS.hdr)%>%
-  filter(date>upto)
-lost.hooks=lost[grep('hook',tolower(lost$COMMENTS.hdr)),]%>%
-  filter(!grepl('PA',SHEET_NO))%>%arrange(date)
-DATA=DATA%>%
-  mutate(N.hooks=ifelse(SHEET_NO=="N00348" & N.hooks==50, (N.hooks-6),
-                 ifelse(SHEET_NO=="S00254" & N.hooks==450, (N.hooks-30),
-                 ifelse(SHEET_NO=="W00115" & N.hooks==50, (N.hooks-30),
-                 ifelse(SHEET_NO=="N00101" & N.hooks==50, (N.hooks-4),
-                 ifelse(SHEET_NO=="N00857" & N.hooks==60, (N.hooks-30),
-                 ifelse(SHEET_NO=="Z00030" & N.hooks==62, (N.hooks-31),
-                 ifelse(SHEET_NO=="W00040" & N.hooks==62, (N.hooks-15),
-                 ifelse(SHEET_NO=="N00353" & N.hooks==50, (N.hooks-2),
-                 N.hooks)))))))))
-dummy=c(rep("N00101",2),"N00104",rep("N00110",2),"N00115",rep("N00130",2),"N00135","N00151",
-        "N00161","N00162","N00164","N00179","N00184","N00189","N00163")
-Add.sp=data.frame(SHEET_NO=dummy,
-                  SPECIES=c(rep('TK',2),rep('TG',2),'TK',rep('TK',11),'MI'))
-DATA.add.sp.com=Add.sp%>%     
-          left_join(DATA%>%
-                      dplyr::select(-SPECIES)%>%distinct(SHEET_NO,.keep_all=T),
-                    by='SHEET_NO')%>%
-          mutate(LINE_NO=NA, TL=NA, SEX=NA, UNIQUE_ID=NA, NewComments=NA, LostFlag=NA,
-                 DeadFlag=NA, HookedTime=NA, ReleasedTime=NA, HookLocation=NA, RetainedFlag=NA,
-                 FL=NA, VERT_SAMPL=NA,BAG_NO=NA, PL=NA, COMMENTS=NA, Weight=NA, BloodFlag=NA,
-                 FinClipFlag=NA, MuscleFlag=NA, Lactate=NA, BleedingFlag=NA, HookRemoved=NA, 
-                 TrunkL=NA, Disc.width=NA)%>%
-  dplyr::select(-c(TYPE,COMMON_NAME,SCIENTIFIC_NAME,Taxa,CAES_Code,CAAB_code))%>%
-  left_join(SPECIES.names,by=c("SPECIES" = "Species"))
-DATA.add.sp.com=DATA.add.sp.com%>%
-  mutate(TYPE=ifelse(Taxa=='Elasmobranch','Elasmo',
-              ifelse(Taxa=='Teleost','Scalefish',
-                     NA)))
-DATA.add.sp.com=DATA.add.sp.com[,order(names(DATA.add.sp.com))]
-DATA=DATA[,order(names(DATA))]
-DATA=rbind(DATA,DATA.add.sp.com)
-
-
 
 #Add lactate in Comments not entered in Lactate column
 DATA$Lactate=ifelse(DATA$Lactate=="",NA,DATA$Lactate)
@@ -800,7 +798,7 @@ DATA=DATA%>%
              Lactate=tolower(Lactate))
 
 
-#remove gillnet data from Method ==LL
+#remove gillnet effort data from Method ==LL
 DATA=DATA%>%
   mutate(MESH_DROP=ifelse(Method=='LL',NA,MESH_DROP),
          NET_LENGTH=ifelse(Method=='LL',NA,NET_LENGTH),
