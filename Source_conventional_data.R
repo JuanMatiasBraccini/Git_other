@@ -192,12 +192,13 @@ Tagging=Tagging%>%
 
 
 #release and recapture methods 
-Res.ves=c('HAM','HOU','NAT','RV BREAKSEA','RV Gannet','RV GANNET','RV SNIPE 2')
+Res.ves=c('HAM','HOU','NAT','RV BREAKSEA','RV Gannet','RV GANNET','RV SNIPE 2','FLIN','naturaliste')
 Tagging=Tagging%>%
   mutate(CAPTVESS=tolower(CAPTVESS),
-         Rec.method=case_when(CAPT_METHD=='LL' & CAPTVESS%in%c('nat','naturaliste') ~"Research longline",
-                              CAPT_METHD=='LL' & !CAPTVESS%in%c('nat','naturaliste') ~"Commercial longline",
-                              CAPT_METHD=='GN' ~"Commercial gillnet",
+         Rec.method=case_when(CAPT_METHD%in%c('LL','HK') & CAPTVESS %in% tolower(Res.ves) ~"Research longline",
+                              CAPT_METHD=='LL' & !CAPTVESS %in% tolower(Res.ves) ~"Commercial longline",
+                              CAPT_METHD=='GN' & CAPTVESS %in% tolower(Res.ves) ~"Research gillnet",
+                              CAPT_METHD=='GN' & !CAPTVESS %in% tolower(Res.ves) ~"Commercial gillnet",
                               !CAPT_METHD%in%c("LL","GN") ~"Other"),
          Rec.method=ifelse(is.na(Recaptured),NA,Rec.method))%>%
   left_join(Boat_hdr%>%dplyr::select(SHEET_NO,Method,BOAT),by='SHEET_NO')%>%
@@ -373,6 +374,32 @@ colnames(Tagging)[match(c("SEX","SPECIES","FL"),names(Tagging))]=
 #fix sex
 Tagging$Sex=ifelse(Tagging$Sex%in%c("F","f"),"F",ifelse(Tagging$Sex%in%c("m","M"),"M","U"))
 
+#add recaptures not entered in database  
+Tagging=Tagging%>%
+  mutate(Day.rec=case_when(Tag.no=='d3254' & Recaptured=='No'~28,
+                           TRUE~Day.rec),
+         Mn.rec=case_when(Tag.no=='d3254' & Recaptured=='No'~7,
+                           TRUE~Mn.rec),
+         Yr.rec=case_when(Tag.no=='d3254' & Recaptured=='No'~2024,
+                           TRUE~Yr.rec),
+         Lat.rec=case_when(Tag.no=='d3254' & Recaptured=='No'~-22.1783667,
+                              TRUE~Lat.rec),
+         Long.rec=case_when(Tag.no=='d3254' & Recaptured=='No'~113.7791167,
+                              TRUE~Long.rec),
+         CAPT_METHD=case_when(Tag.no=='d3254' & Recaptured=='No'~'rod and reel',
+                              TRUE~CAPT_METHD),
+         Rec.method=case_when(Tag.no=='d3254' & Recaptured=='No'~'Other',
+                              TRUE~Rec.method),
+         Recaptured=case_when(Tag.no=='d3254' & Recaptured=='No'~'Yes',
+                              TRUE~Recaptured))
+
+#Reset Rel.method
+Tagging=Tagging%>%
+  mutate(Rel.method=case_when(Method=='LL' & !BOAT%in%Res.ves~"Commercial longline",
+                              Method=='LL' &  BOAT%in%Res.ves~"Research longline",
+                              Method=='GN' &  BOAT%in%Res.ves~"Research gillnet",
+                              Method=='GN' & !BOAT%in%Res.ves~"Commercial gillnet",
+                              TRUE~"Other"))
 
 #Create useful variables
 
