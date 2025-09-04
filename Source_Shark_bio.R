@@ -7,6 +7,7 @@ library(RODBC)
 library(lunar)   #moon phases
 library(lubridate)
 library(tidyverse)
+library(ggrepel)
 options(stringsAsFactors = FALSE)
 
 
@@ -321,8 +322,13 @@ DATA=DATA%>%
   dplyr::select(-dummys)
 
 DATA=DATA%>%
-  mutate(SPECIES=ifelse(SPECIES=='GH' & SHEET_NO=='I00842','HG',SPECIES))
-
+  mutate(SPECIES=ifelse(SPECIES=='GH' & SHEET_NO=='I00842','HG',
+                 ifelse(NewComments=='POSSIBLY MILK SHARK HEAD ONLY LAB' & SPECIES=='XX','MI',
+                        SPECIES)))
+                        
+#Extract depredation events
+Depredated=DATA%>%filter(grepl(paste(c('head','depredat'),collapse = '|'),tolower(NewComments)))%>%
+            dplyr::select(SHEET_NO,LINE_NO,date,year,BOAT,Method,SPECIES,NewComments)
 
 #Manually add lost species and subtract lost hooks  
 
@@ -330,9 +336,9 @@ DATA=DATA%>%
 #       Some records already deducted by data person entry so only change here records not amended by data entry person.
 #       Don't do for Parks Australia shots, this is done in PA script
 
-upto=as.Date("2024-06-29")  #manually fix records after this date in case_when() and 'Add.sp'
+upto=as.Date("2025-06-17")  #manually fix records after this date in case_when() and 'Add.sp'
 
-lost=DATA[grep('lost',tolower(DATA$COMMENTS.hdr)),]%>%
+lost=DATA[grep(paste(c('lost','straightened'),collapse='|'),tolower(DATA$COMMENTS.hdr)),]%>%
           filter(Method=='LL')%>%
           distinct(SHEET_NO,date,COMMENTS.hdr)%>%
           filter(date>upto)
@@ -352,6 +358,8 @@ DATA=DATA%>%
                            SHEET_NO=="Z00030" & N.hooks==62 ~ (N.hooks-31),
                            SHEET_NO=="W00040" & N.hooks==62 ~ (N.hooks-20),
                            SHEET_NO=="N00353" & N.hooks==50 ~ (N.hooks-2),
+                           SHEET_NO=="D00156" & N.hooks==50 ~ (N.hooks-32),
+                           SHEET_NO=="D00144" & N.hooks==50 ~ (N.hooks-4),
                            TRUE~N.hooks),
          N.hooks.lost=N.hooks.deployed-N.hooks)
   #species
@@ -367,6 +375,60 @@ DATA.add.sp.com=DATA[1:nrow(Add.sp),]%>%
                                TL=Add.sp$TL)
 DATA=rbind(DATA,DATA.add.sp.com)
 
+#ACA
+#Annual data validation
+do.annual.dat.validation=FALSE
+if(do.annual.dat.validation)
+{
+  a=DATA%>%filter(date>as.Date("2025-06-17") & BOAT=='NAT')
+  a=merge(a,SPECIES.names,by.x="SPECIES",by.y="Species",all.x=T)
+  #check locations
+  a%>%
+    rename(lat='MID LAT',
+           long='MID LONG')%>%
+    distinct(lat,long,SHEET_NO)%>%
+    mutate(lat=-abs(lat))%>%
+    ggplot(aes(long,lat,label=SHEET_NO))+
+    geom_text_repel()
+  
+  #check species
+  Check.species=a%>%
+    distinct(SPECIES,COMMON_NAME,SCIENTIFIC_NAME)
+  Check.species=Check.species%>%
+    filter(is.na(SPECIES)|is.na(COMMON_NAME))
+  Check.species=a%>%
+    filter(SPECIES%in%Check.species$SPECIES | COMMON_NAME%in%Check.species$COMMON_NAME)%>%
+    dplyr::select(SHEET_NO,LINE_NO,SPECIES,COMMON_NAME,SCIENTIFIC_NAME,COMMENTS.hdr,NewComments,COMMENTS)
+  if(nrow(Check.species)>0) write.csv(Check.species,
+                                      handl_OneDrive('Analyses/Surveys/Naturaliste_longline/outputs/Data validation/Check.species.csv'),row.names = F)
+  
+  
+  #check lengths, sex
+  a%>%
+    ggplot(aes(TL))+
+    geom_bar()+
+    facet_wrap(~COMMON_NAME,scales='free')
+  
+  a%>%
+    ggplot(aes(FL))+
+    geom_bar()+
+    facet_wrap(~COMMON_NAME,scales='free')
+  
+  table(a$SEX,useNA = 'ifany')
+  
+  #check diet and reprod data entered in columns not just comments
+  x=a%>%
+    filter(grepl(paste(c('uterine','egg','-f','-m','embryo','pup','ovary'),collapse='|'),tolower(NewComments)))%>%
+    dplyr::select(SHEET_NO,SPECIES,LINE_NO,
+                  CLASPLENTH,CLASP_CALC,GON_STAGE,RUN_SPERM,MAXOVRYDIA,OG,NO_YOLKOVA,UTERINESTG,NO_EMBRYOS,
+                  NO_UNDEVELOPED,EMBLEN_1,EMBLEN_2,EMBLEN_3,EMBLEN_4,EMBLEN_5,EMBLEN_6,EMBLEN_7,EMBLEN_8,EMBLEN_9,
+                  EMBLEN_10,EMBLEN_11,EMBLEN_12,EMBLEN_1_SEX,EMBLEN_2_SEX,EMBLEN_3_SEX,EMBLEN_4_SEX,EMBLEN_5_SEX,
+                  EMBLEN_6_SEX,EMBLEN_7_SEX,EMBLEN_8_SEX,EMBLEN_9_SEX,EMBLEN_10_SEX,EMBLEN_11_SEX,EMBLEN_12_SEX,
+                  NewComments,date)
+  
+  #check heads been entered as record
+  a%>%filter(grepl('head',tolower(NewComments)))%>%distinct(NewComments,SPECIES,COMMON_NAME,SCIENTIFIC_NAME)
+}
 
 #Create Biological data frame
 keep.biol=c("SHEET_NO","SPECIES","date","TL","FL","PL","SEX","RELEASE CONDITION","UMBIL_SCAR", "NO_DISCARDS",
@@ -592,7 +654,8 @@ DATA$FL=with(DATA,ifelse(SPECIES=="BW" & FL<41,NA,ifelse(SPECIES=="WH" & FL==12,
 DATA$FL=with(DATA,ifelse(SPECIES=="MI" & FL==690,69,
                   ifelse(SPECIES=="SC" & FL==9.90,99,
                   ifelse(SPECIES=="SC" & FL<11,105.3,
-                  FL))))  #some typos
+                  ifelse(SHEET_NO=="D00142" & SPECIES=="SO" & FL>600,FL/10,
+                        FL)))))  #some typos
 DATA=DATA%>%
   mutate(FL=case_when(SPECIES=='PJ' & FL>140 ~ FL/10,
                       TRUE~FL))
@@ -811,6 +874,11 @@ DATA.bio=DATA.bio%>%
         mutate(MESH_DROP=ifelse(Method=='LL',NA,MESH_DROP),
                NET_LENGTH=ifelse(Method=='LL',NA,NET_LENGTH),
                MESH_SIZE=ifelse(Method=='LL',NA,MESH_SIZE))
+
+DATA$Mid.Lat=-abs(DATA$Mid.Lat)
+DATA.bio$Mid.Lat=-abs(DATA.bio$Mid.Lat)
+DATA.ecosystems$Mid.Lat=-abs(DATA.ecosystems$Mid.Lat)
+
 
 # EXPORT SECTION -----------------------------------------------------------------------
 
