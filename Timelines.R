@@ -579,11 +579,17 @@ if(do.this)
 
 # Department's title change, staff and papers ---------------------------------------------------------
 #Sourced by Paul Orange
-papers=data.frame(year=rep(c(1960,1970,1980,1990,2000,2010,2020),2),
-                  n=c(10,20,30,80,180,250,380,   1,2,10,25,29,48,100),
-                  type=c(rep('Paper',7),rep('Report',7)))
+papers=read_excel(paste0(hndl.in,'Publications - journal articles, etc. - by Department of Fisheries staff.xlsx'), sheet = "Sheet1",skip = 0)
+papers=papers%>%
+  rename(n='No. of Publications')%>%
+  mutate(type='Papers & conferences')%>%
+  filter(Year<2017) #incomplete since 2017
+
+# papers=data.frame(year=rep(c(1960,1970,1980,1990,2000,2010,2020),2),
+#                   n=c(10,20,30,80,180,250,380,   1,2,10,25,29,48,100),
+#                   type=c(rep('Paper',7),rep('Report',7)))
 p_papers=papers%>%
-        ggplot(aes(year,n,color=type))+
+        ggplot(aes(Year,n,color=type))+
         geom_point(size=2.5)+
         geom_line(linetype='dotted',linewidth=1.05,show.legend = FALSE)+theme_minimal() +
         theme(legend.position = c(.5, .95),

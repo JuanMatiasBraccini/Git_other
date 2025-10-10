@@ -336,13 +336,14 @@ Depredated=DATA%>%filter(grepl(paste(c('head','depredat'),collapse = '|'),tolowe
 #       Some records already deducted by data person entry so only change here records not amended by data entry person.
 #       Don't do for Parks Australia shots, this is done in PA script
 
-upto=as.Date("2025-06-17")  #manually fix records after this date in case_when() and 'Add.sp'
+upto=as.Date("2025-06-14")  #manually fix records after this date in case_when() and 'Add.sp'
 
 lost=DATA[grep(paste(c('lost','straightened'),collapse='|'),tolower(DATA$COMMENTS.hdr)),]%>%
           filter(Method=='LL')%>%
-          distinct(SHEET_NO,date,COMMENTS.hdr)%>%
+          distinct(SHEET_NO,N.hooks,date,COMMENTS.hdr)%>%
+          arrange(date)%>%
           filter(date>upto)
-  #hooks
+  #hooks for PA project
 lost.hooks=lost[grep('hook',tolower(lost$COMMENTS.hdr)),]%>%
             filter(!grepl('PA',SHEET_NO))%>%arrange(date)
 DATA=DATA%>%
@@ -359,6 +360,10 @@ DATA=DATA%>%
                            SHEET_NO=="W00040" & N.hooks==62 ~ (N.hooks-20),
                            SHEET_NO=="N00353" & N.hooks==50 ~ (N.hooks-2),
                            SHEET_NO=="D00156" & N.hooks==50 ~ (N.hooks-32),
+                           SHEET_NO=="D00108" & N.hooks==50 ~ (N.hooks-1),
+                           SHEET_NO=="D00123" & N.hooks==50 ~ (N.hooks-3),
+                           SHEET_NO=="D00166" & N.hooks==50 ~ (N.hooks-5),
+                           SHEET_NO=="D00176" & N.hooks==50 ~ (N.hooks-4),
                            SHEET_NO=="D00144" & N.hooks==50 ~ (N.hooks-4),
                            TRUE~N.hooks),
          N.hooks.lost=N.hooks.deployed-N.hooks)
