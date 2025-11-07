@@ -282,7 +282,13 @@ Boat_bio_header_sp=Boat_bio_header_sp[,match(names(DATA),names(Boat_bio_header_s
 DATA=rbind(DATA,Boat_bio_header_sp)
 
 #fix temperature
-DATA$TEMP=with(DATA,ifelse(TEMP==2537,25.7,ifelse(TEMP==0,NA,TEMP)))
+DATA=DATA%>%
+  mutate(TEMP=case_when(TEMP==2537~25.7,
+                         TEMP==0~NA,
+                         TEMP>40 & SHEET_NO=='D00152'~26.79,
+                         TEMP<10~NA,
+                         TRUE~TEMP))
+
 
 
 #Convert TL to FL if FL is NA and there is TL info

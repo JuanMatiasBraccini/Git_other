@@ -579,19 +579,26 @@ if(do.this)
 
 # Department's title change, staff and papers ---------------------------------------------------------
 #Sourced by Paul Orange
-papers=read_excel(paste0(hndl.in,'Publications - journal articles, etc. - by Department of Fisheries staff.xlsx'), sheet = "Sheet1",skip = 0)
+papers=read_excel(paste0(hndl.in,'Publications - journal articles, etc. - by Department of Fisheries staff.xlsx'), sheet = "Journal Articles",skip = 0)
+reports=read_excel(paste0(hndl.in,'Publications - journal articles, etc. - by Department of Fisheries staff.xlsx'), sheet = "FIsheries Published Reports",skip = 0)
+
 papers=papers%>%
   rename(n='No. of Publications')%>%
-  mutate(type='Papers & conferences')%>%
+  mutate(type='Papers & Conferences')%>%
   filter(Year<2017) #incomplete since 2017
+reports=reports%>%
+  rename(n='TOTAL PUBLICATIONS PER YEAR')%>%
+  mutate(type='Reports')%>%
+  filter(Year<2017)%>%
+  dplyr::select(Year,type,n)
+  
 
-# papers=data.frame(year=rep(c(1960,1970,1980,1990,2000,2010,2020),2),
-#                   n=c(10,20,30,80,180,250,380,   1,2,10,25,29,48,100),
-#                   type=c(rep('Paper',7),rep('Report',7)))
-p_papers=papers%>%
+Fisheries.publications=rbind(papers,reports)
+
+p_papers=Fisheries.publications%>%
         ggplot(aes(Year,n,color=type))+
-        geom_point(size=2.5)+
-        geom_line(linetype='dotted',linewidth=1.05,show.legend = FALSE)+theme_minimal() +
+        geom_point(size=1.5)+
+        geom_line(linetype='dotted',linewidth=.9,show.legend = FALSE)+theme_minimal() +
         theme(legend.position = c(.5, .95),
               legend.title = element_blank(),
               legend.text=element_text(size=10),
@@ -645,7 +652,8 @@ names(Name.cols)=c("Fisheries Department","Department of Aborigines and Fisherie
                    "Fisheries Western Australia","Department of Fisheries","DPIRD")
 p=p+
   scale_color_manual(values = Name.cols)+
-  labs(caption = 'DPIRD, Department of Primary Industries and Regional Development')
+  labs(caption = 'DPIRD, Department of Primary Industries and Regional Development')+
+  theme(plot.caption = element_text(hjust = 1, vjust = 230))
 
 #create inset
 p_inset=function.segment.timeline(d=department.staff%>%
@@ -676,7 +684,7 @@ ggdraw(p) +
   draw_plot(p_papers+
               theme(panel.border = element_rect(colour = "grey90", fill = NA, size = 1.5),
                     panel.background = element_rect(fill = "grey90")),
-            x = 0.6, y = 0, width = 0.4, height = 0.4)
+            x = 0.6, y = -.01, width = 0.4, height = 0.35)
 ggsave(paste0(hndl.out,"Department's title change and staff_v2.jpg"),width = 10,height = 6.5)  
 
 
@@ -723,7 +731,7 @@ if(do.this)
     draw_plot(p_papers+
                 theme(panel.border = element_rect(colour = "grey90", fill = NA, size = 1.5),
                       panel.background = element_rect(fill = "grey90")),
-              x = 0.6, y = -0.01, width = 0.4, height = 0.4)
+              x = 0.6, y = -.01, width = 0.4, height = 0.35)
   ggsave(paste0(hndl.out,"Department's title change and staff_v3.jpg"),width = 10,height = 6.5)  
   
 }

@@ -1,3 +1,9 @@
+if(!exists('handl_OneDrive')) source('C:/Users/myb/OneDrive - Department of Primary Industries and Regional Development/Matias/Analyses/SOURCE_SCRIPTS/Git_other/handl_OneDrive.R')
+do.observer=TRUE
+if(do.observer)
+{
+  source(handl_OneDrive("Analyses/SOURCE_SCRIPTS/Git_other/Source_Shark_bio.R"))
+}
 library(tidyverse)
 library(ggpubr)
 library(rnaturalearth)
@@ -11,13 +17,7 @@ library(sf)
 library(mapview)
 library(Hmisc)
 
-if(!exists('handl_OneDrive')) source('C:/Users/myb/OneDrive - Department of Primary Industries and Regional Development/Matias/Analyses/SOURCE_SCRIPTS/Git_other/handl_OneDrive.R')
-do.observer=FALSE
-if(do.observer)
-{
-  source(handl_OneDrive("Analyses/SOURCE_SCRIPTS/Git_other/Source_Shark_bio.R"))
-  LH.data=read.csv(handl_OneDrive('Data/Life history parameters/Life_History.csv'))
-}
+LH.data=read.csv(handl_OneDrive('Data/Life history parameters/Life_History.csv'))
 
 source(handl_OneDrive('Analyses/SOURCE_SCRIPTS/Git_other/ggplot.themes.R'))  #my themes
 hndl.out=handl_OneDrive("ISRA/Australia/WA/")
@@ -1609,6 +1609,110 @@ if(do.observer)
               arrange(SCIENTIFIC_NAME),
             paste0(hndl.out,"Outputs/z_neonates/Table.length.neonate.YOY.species.csv"),row.names = F)
   
+  
+  #Plot by small, medium or large
+  Size.colors.size=c(Small="navyblue", Medium="skyblue1", Large="azure2")
+  
+  #1. cut lengths into 3 categories
+  TL.SPECIES=c('wobbegong','catshark','sawfish','carpet sharks',
+               'stingray','eagle ray','Wobbegong')
+  Size.classes=data.frame(Sp=Unik.Sp)
+  fun.cut=function(x)
+  {
+    d=Da%>%
+      filter(COMMON_NAME==x)%>%
+      filter(!is.na(Mid.Lat))%>%
+      mutate(Length=ifelse(grepl(paste(TL.SPECIES,collapse = '|'),COMMON_NAME),TL,FL))%>%
+      filter(!is.na(Length))%>%
+      mutate(Class=cut(Length,3))
+    Lvl=levels(d$Class)
+    aa=str_remove_all(Lvl[1], "[()]")
+    return(data.frame(Sp=x,
+                      Small=as.numeric(sub(",.*", "", str_remove_all(Lvl[1], "[()]"))),
+                      Medium=as.numeric(sub(",.*", "", str_remove_all(Lvl[2], "[()]")))))
+  }
+  Length.classes=lapply(Size.classes$Sp,fun.cut)
+  Size.classes=do.call(rbind,Length.classes)%>%
+                          mutate(Small=case_when(Sp=="White shark"~200,
+                                                 TRUE~Small),
+                                 Medium=case_when(Sp=="White shark"~300,
+                                                 TRUE~Medium))
+  
+  fn.plot.size.classes=function(sp,min.smap.size=25,siz.kol=Size.colors.size,dat.name,Klass)
+  {
+    d=Da%>%
+      filter(COMMON_NAME==sp)%>%
+      filter(!is.na(Mid.Lat))%>%
+      left_join(Klass,by=c('COMMON_NAME'='Sp'))
+    
+    d=d%>%
+      mutate(Class=case_when(TL<Small~paste("<",Small,'cm TL'),
+                             TL>=Small & TL<= Medium ~paste(Small,'-',Medium,'cm TL'),
+                             TL>Medium~paste(">",Medium,'cm TL')))
+    Class.level=unique(d$Class)
+    Class.level=c(Class.level[grep("<",Class.level)],Class.level[grep("-",Class.level)],Class.level[grep(">",Class.level)])
+    d$Class=factor(d$Class,levels=Class.level)
+    names(siz.kol)=levels(d$Class)
+    if(sum(is.na(d$Class))==nrow(d))
+    {
+      d=d%>%
+        mutate(Length=ifelse(grepl(paste(TL.species,collapse = '|'),COMMON_NAME),TL,FL))%>%
+        filter(!is.na(Length))%>%
+        mutate(Class=cut(Length,3))
+      names(siz.kol)=levels(d$Class)
+    }
+    d=d%>%
+      group_by(COMMON_NAME,SCIENTIFIC_NAME,Mid.Lat, Mid.Long,Class)%>%
+      tally()%>%
+      ungroup()
+    
+    if(nrow(d)>min.smap.size)
+    {
+      LIMY=c(min(d$Mid.Lat),max(d$Mid.Lat))
+      LIMX=c(min(d$Mid.Long),max(d$Mid.Long))
+      if(LIMY[2]<=.95*LIMY[1] | LIMX[2]<=1.005*LIMX[1])
+      {
+        LIMY[1]=LIMY[1]-1
+        LIMY[2]=LIMY[2]+1
+        
+        LIMX[1]=LIMX[1]-1
+        LIMX[2]=LIMX[2]+1
+      }
+      
+      Base.map=fn.map(Limx=LIMX, Limy=LIMY, Depth.data=Bathymetry,add.depth=FALSE,add.parks=FALSE,
+                      FishClose.col='cyan2',ASL.col='cadetblue4',Comm.col='chartreuse4',State.col='aquamarine3',alpha.parks=.5)
+      
+      p1=Base.map+
+        geom_point(data=d,aes(Mid.Long,Mid.Lat, size=n,fill=Class),
+                   alpha=.5,color='black',shape = 21)+
+        facet_wrap(~Class,nrow=1)+
+        theme_PA()+
+        theme(legend.position = 'top',
+              axis.text.x = element_text(angle = 90, hjust = 1, vjust = 0.5))+
+        scale_fill_manual(values=siz.kol,drop=FALSE)+
+        guides(fill = "none")+
+        ggtitle(unique(d$SCIENTIFIC_NAME))
+      
+      print(p1)
+      Height=Width=6
+      if((LIMY[2]-LIMY[1]) >= 2*(LIMX[2]-LIMX[1] ))
+      {
+        Height=8
+        Width=5
+      }
+      Width=8
+      ggsave(paste0(hndl.out,"Outputs/z_neonates/",paste(dat.name,sp,sep='_'),".tiff"),width = Width,height = Height,compression = "lzw")
+      
+    }
+    
+  }
+  for(s in 1:length(Unik.Sp))
+  {
+    print(paste('--------------plot Size classes for -----',Unik.Sp[s]))
+    fn.plot.size.classes(sp=Unik.Sp[s],
+                         dat.name='Size classes/',
+                         Klass=Size.classes[s,])
+  }
 }
 
 
