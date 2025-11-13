@@ -5,6 +5,8 @@ library(data.table)
 library(Hmisc)
 library(countrycode)
 library(rnaturalearth)
+library(ggrepel)
+library(scales)
 
 if(!exists('handl_OneDrive')) source('C:/Users/myb/OneDrive - Department of Primary Industries and Regional Development/Matias/Analyses/SOURCE_SCRIPTS/Git_other/handl_OneDrive.R')
 hndl.out=handl_OneDrive("Scientific manuscripts/Perspective_Double standards/6. Outputs/")
@@ -13,7 +15,8 @@ source(handl_OneDrive('Analyses/SOURCE_SCRIPTS/Git_other/ggplot.themes.R'))
 # Infographic - Production, exports and imports --------------------------------------------------------------------
 
 #1. Bring in data
-  #1.1 source https://www.agriculture.gov.au/abares/research-topics/fisheries/fisheries-data#australian-fisheries-and-aquaculture-statistics-2022
+  #1.1 Production, total imports, total exports
+# source https://www.agriculture.gov.au/abares/research-topics/fisheries/fisheries-data#australian-fisheries-and-aquaculture-statistics-2022
   #these tables have production, exports and imports but by either commodity or country
   #Tables 13 & 14 have exports by commodity and country, respectively
   #Tables 15 & 16 have imports by commodity and country, respectively
@@ -116,7 +119,8 @@ Production_table16=Production_table16%>%
 
 
 
-  #1.2. source https://www.agriculture.gov.au/abares/research-topics/trade/dashboard
+  #1.2. Imports and exports by Country, Australian State and TradeCode
+#source https://www.agriculture.gov.au/abares/research-topics/trade/dashboard
 hndl.in=handl_OneDrive("Data/Seafood imports and exports/") 
 ABARES_trade_data=fread(paste0(hndl.in,'ABARES_trade_data.csv'))%>%data.frame
 C3803499_HTISC=fread(paste0(hndl.in,'C3803499_HTISC.csv'))%>%data.frame
@@ -124,29 +128,34 @@ C4203471_AHECC=fread(paste0(hndl.in,'C4203471_AHECC.csv'))%>%data.frame
 Fish_codes=fread(paste0(hndl.in,'Fish codes.csv'))%>%data.frame%>%
   filter(Keep==1)%>%
   filter(!grepl('unfit for',tolower(Description)))#remove unfit for human consumption
+
 Code.description=rbind(C3803499_HTISC,C4203471_AHECC)%>%
   distinct(Code, .keep_all = T)%>%
   rename(TradeCode=Code)%>%
   filter(TradeCode%in%unique(ABARES_trade_data$TradeCode))
+
 ABARES_trade_data=ABARES_trade_data%>%
-  left_join(Code.description,by='TradeCode')%>%
-  mutate(Country=case_when(grepl('France',Overseas_location)~'France',
-                           Overseas_location=="Antarctica, nfd" ~"Antarctica" ,
-                           Overseas_location%in%c("Australia (Re-imports)","Christmas Island",
-                                                  "Cocos (Keeling) Islands","Norfolk Island",
-                                                  "JPDA (Joint Petroleum Development Area - administered by Australia and Timor-Leste)") ~"Australia" ,
-                           Overseas_location=="Belgium and Luxembourg" ~"Belgium" ,
-                           grepl('China',Overseas_location)~'China',
-                           Overseas_location=="Denmark (includes Greenland and Faroe Islands)" ~"Denmark",
-                           Overseas_location%in%c("Falkland Islands (includes South Georgia and South Sandwich Islands)",
-                                                  "United Kingdom, Channel Islands and Isle of Man, nfd") ~"United Kingdom",
-                           Overseas_location%in%c("Former USSR, nfd","Russian Federation") ~"Russia",
-                           Overseas_location=="Italy (includes Holy See and San Marino)" ~"Italy",
-                           grepl('Netherlands',Overseas_location)~'Netherlands',
-                           grepl('Serbia',Overseas_location)~'Serbia',
-                           grepl('Switzerland',Overseas_location)~'Switzerland',
-                           grepl('United States',Overseas_location)~'United States',
-                           TRUE~Overseas_location))
+                  left_join(Code.description,by='TradeCode')%>%
+                  mutate(Country=case_when(grepl('France',Overseas_location)~'France',
+                                           Overseas_location=="Antarctica, nfd" ~"Antarctica" ,
+                                           Overseas_location%in%c("Australia (Re-imports)","Christmas Island",
+                                                                  "Cocos (Keeling) Islands","Norfolk Island",
+                                                                  "JPDA (Joint Petroleum Development Area - administered by Australia and Timor-Leste)") ~"Australia" ,
+                                           Overseas_location=="Belgium and Luxembourg" ~"Belgium" ,
+                                           grepl('China',Overseas_location)~'China',
+                                           Overseas_location=="Denmark (includes Greenland and Faroe Islands)" ~"Denmark",
+                                           Overseas_location%in%c("Falkland Islands (includes South Georgia and South Sandwich Islands)",
+                                                                  "United Kingdom, Channel Islands and Isle of Man, nfd") ~"United Kingdom",
+                                           Overseas_location%in%c("Former USSR, nfd","Russian Federation") ~"Russia",
+                                           Overseas_location=="Italy (includes Holy See and San Marino)" ~"Italy",
+                                           grepl('Netherlands',Overseas_location)~'Netherlands',
+                                           grepl('Serbia',Overseas_location)~'Serbia',
+                                           grepl('Switzerland',Overseas_location)~'Switzerland',
+                                           grepl('United States',Overseas_location)~'United States',
+                                           TRUE~Overseas_location),
+                         Country=case_when(Country%in%c("No Country Details","Ship and Aircraft Stores",
+                                                        "Trust Territory Pac Isld","Unidentified","Unknown")~"NA",
+                                           TRUE~Country))
 
 ABARES_trade_data=ABARES_trade_data%>%filter(TradeCode%in%unique(Fish_codes$TradeCode))
 ABARES_trade_data$Continent=countrycode(sourcevar = ABARES_trade_data$Country, origin = "country.name", destination = "continent")
@@ -167,12 +176,10 @@ ABARES_trade_data=ABARES_trade_data%>%
                                                         15041010,1504100050,302700027,302900027,302910001,303800024,
                                                         303900077,3039101,303910090,305200032)~'Dried fish; fish oil, livers & extracts',
                                           TradeCode%in%c(2301200003,309900090,3099090,3051001,3091010,305100031,309100010,2301200031)~'Fish flour',
-                           
                                           TradeCode%in%c(308120042,308110041,1605610065,3081901,308190043,308190042)~'Sea cucumbers',
                                           TradeCode%in%c(308220052,308210051,1605620066,3082901,308290053,308290052)~'Sea urchins',
                                           
                                           TradeCode%in%c(307490020)~'Squid',
-                                          
                                            grepl(paste(c('clams',"cockles"),collapse='|'),Group)~'Clams & cockles',
                                                           TradeCode%in%c(306190005,306290012,306190026,306290027,306990020,1605400010,
                                                                          3069990,306990021,3061901,3061961,306190047,3061960,306190046,
@@ -209,27 +216,24 @@ ABARES_trade_data=ABARES_trade_data%>%
                                                          306270007,3062390,306230060,306230062,306230061,3061310)~'Prawns',
                                           TradeCode%in%c(306140004,3061419,306140026,306330003,16051020,1605100010,1605100017,
                                                          16051090,1605100004,16051010,1605100016,1605100003,306240011,3062402,306240004)~'Crabs',
-                                          
                                           grepl(paste(c('aquatic invertebrates','jellyfish'),collapse='|'),Group)~'Other aquatic invertebrates',
-                                          
-                                          TradeCode%in%c(305320042,305310040,305310041,3053101,16030012,304100002,304100036,
+                                          TradeCode%in%c(305320042,16030012,304100002,304100036,
                                                          305300033,3053901,305390049,305390050,305300017,305100012,3049090,3037912,3037990,
                                                          16042011,302690026,303790023,303790002,305690030,3056950,305690089,3056951,305690090,
-                                                         302290013,3044901,304490080,304490079,304440073,304430072,304330062,
+                                                         302290013,3044901,304490080,304490079,304440073,304430072,
                                                          3028901,3026909,302690042,302890050,304100042,3041909,304190058,302990003,
                                                          3045950,304590089,3045951,304590090,302590029,3025901,302590030,302490001,302290026,
-                                                         3022902,3022901,302290019,302290020,302390040,304530082,3045101,304510080,304510079,
+                                                         3022902,3022901,302290019,302290020,302390040,304530082,
                                                          3048901,304890040,304890039,304790029,304830033,304900042,3038950,303890079,3038951,
                                                          3037919,303790055,303890080,304200022,304200021,304200045,304200044,3042909,
                                                          304290092,304290091,3042002,304200007,304200039,304200006,304200038,3039910,
                                                          303990092,3049091,304900011,304900041,3049919,304990079,304990072,3049901,304990080,
-                                                         303590090,3036901,303690069,303690070,304950073,304930071,304930074,3049301,
+                                                         303590090,3036901,303690069,303690070,304950073,
                                                          301990029,301990006,3019950,301990009,3019910,3019909,301990035,3019901,3019902,
                                                          3019903,301990010,1604200060,1604200070,1604200066,1604200039,1604190032,1604190031,
                                                          16042014,1604200043,1604200042,16042090,16042019,16041990,16041910,1604190034,16041920,
                                                          1604190030,1604190035,16041921,1604190033,305490062,305490061,3054951,3054901,3054950,
-                                                         305490023,305490022,305490064,305490063,305640084,305640085,30289004)~'Mixed finfish',
-                                        
+                                                         305490023,305490022,305490064,305490063,30289004,302890049)~'Mixed finfish',
                                          grepl(paste(c('anchov','anchovies','engraulis','sardine'),collapse='|'),Group)~'Anchovies & sardines',
                                          grepl(paste(c('caviar'),collapse='|'),Group)~'Caviar',
                                          grepl(paste(c('cod'),collapse='|'),Group)~'Cod',
@@ -241,12 +245,14 @@ ABARES_trade_data=ABARES_trade_data%>%
                                          grepl(paste(c('albacore','tuna','swordfish','skipjack','bonito'),collapse='|'),Group)~'Tunas & billfish',
                                          grepl(paste(c('salmon','trout'),collapse='|'),Group)~'Salmons & trouts',
                                          TradeCode%in%c(3025601,3036801,303680065,303680066,3037910)~'Whitings',
-                                         TradeCode%in%c(302730033,3027301,304390069,3043901,304390068,303250052,3032501,303250053,
-                                                        304690019,3046901,304690018,3019301,3019302,3019303,3019304,301930007)~'Carps',
                                          TradeCode%in%c(3027201,302720032,302720033,304320061,304310060,302710031,
                                                         302710032,3032401,303240052,303240051,304620012,304610011,
-                                                        3032301,303230051,303230050,3054441,305440055,305440054)~'Tilapias & catfish',
-                                         TradeCode%in%c(3027901,302790039,302790040,304630013,3032911,303290060,3032910,303290059)~'Nile perch',
+                                                        3032301,303230051,303230050,3054441,305440055,305440054,
+                                                        305640085,305640084,3049301,304930074,304930071,304510079,304510080,3045101,
+                                                        304330062,3053101,305310040,305310041,3027901,302790039,302790040,304630013,
+                                                        3032911,303290060,3032910,303290059,
+                                                        302730033,3027301,304390069,3043901,304390068,303250052,3032501,303250053,
+                                                        304690019,3046901,304690018,3019301,3019302,3019303,3019304,301930007)~'Tilapias, catfish, Nile perch & Carps',
                                          TradeCode%in%c(3024601,302460006,303560059)~'Cobia',
                                          TradeCode%in%c(3041202,3026807,302680041,304550084)~'Toothfish',
                                          grepl(paste(c('toothfish'),collapse='|'),Group)~'Toothfish',
@@ -269,18 +275,81 @@ ABARES_trade_data=ABARES_trade_data%>%
                                          grepl(paste(c('turbots'),collapse='|'),Group)~'Turbots',
                                          TradeCode%in%c(3028401,302840043,303770021,303840073,303840074)~'Seabass',
                                          TradeCode%in%c(3028501,302850044,302850045)~'Seabreams',
-                                        grepl(paste(c('ornamental','Live Australian species of syngnathids'),collapse='|'),Group)~'Ornamental fish',
-                                        TradeCode%in%c(3011020)~'Ornamental fish',
-                                        
+                                        grepl(paste(c('ornamental','Live Australian species of syngnathids'),collapse='|'),Group)~'Ornamental finfish',
+                                        TradeCode%in%c(3011020)~'Ornamental finfish',
                                         TradeCode%in%c(302920002,303920091,1604180067,305710091)~'Shark fins',
                                         TradeCode%in%c(302650024,302810040,302810041,304560085,304470076,
                                                        3038101,303750019,303810070,303810071,304960075,304880038)~'Dogfish & other sharks',
                                         TradeCode%in%c(304480077,3028201,302820042,303820071,303820072,304970076)~'Rays & skates',
-                                         
                                          TRUE~NA))
 
+ABARES_trade_data=ABARES_trade_data%>%
+          mutate(Group2=case_when(Group1%in%c("Freshwater crayfish","Lobsters","Prawns")~"Lobsters & prawns",
+                                  Group1%in%c("Clams & cockles","Crabs","Cuttlefish","Mussels","Octopus","Other crustaceans",
+                                              "Other molluscs","Oysters","Squid")~"Other crustaceans & molluscs",
+                                  Group1%in%c("Abalone","Scallops")~'Abalone & scallops',
+                                  Group1%in%c("Anchovies & sardines","Caviar","Cobia","Cod",
+                                              "Dogfish & other sharks","Eels","Haddock","Hakes",
+                                              "Halibuts","Herrings","Jack & horse mackerels","Mackerels","Mixed finfish",
+                                              "Ornamental finfish","Ornamental fish","Plaice","Pollocks","Rays & skates","Salmons & trouts",
+                                              "Seabass","Seabreams","Shark fins","Sole","Tilapias, catfish, Nile perch & Carps",
+                                              "Toothfish","Tunas & billfish","Turbots","Whitings")~'Finfish',
+                                  Group1%in%c("Dried fish; fish oil, livers & extracts","Fish flour")~'Fish',
+                                  Group1%in%c("Other aquatic invertebrates","Sea cucumbers","Sea urchins")~'Other invertebrates',
+                                  TRUE~NA))
+#note: Value= in $; Quantity in kg so convert to millions of $ and tonnes
+ABARES_trade_data=ABARES_trade_data%>%
+                    mutate(Value_millions=Value/1e6,
+                           Quantity_tonnes=Quantity/1e3)
 
+#Indices
+#note: https://impact.economist.com/projects/illicit-trade-environment-index classes rankings as
+# Major, 0-30; High, 30-50; Moderate, 50-70; Minor, 70-100 Risks
+Environmental.Performance.Index=fread(paste0(hndl.in,'Environmental.Performance.Index.csv'))%>% # (Wolf et al. 2022) https://epi.yale.edu/downloads
+  data.frame%>%
+  dplyr::select(country,EPI.new)%>%
+  rename(Country=country,
+         Value=EPI.new)%>%
+  mutate(Index='EPI',
+         Country=case_when(Country=="United States of America"~"United States",
+                           Country=="Viet Nam"~"Vietnam",
+                           TRUE~Country))
 
+Global.ilicit.trade.index=fread(paste0(hndl.in,'Global ilicit trade index.csv'))%>% # (The Economist Intelligence Unit 2018) https://www.tracit.org/illicit-trade-index-visualization.html#rankingsSection
+  data.frame%>%
+  rename(Value=Illicit.Trade.Index.Score)%>%
+  mutate(Index='GITI',
+         Country=case_when(Country=="Viet Nam"~"Vietnam",
+                           Country=="Korea, Rep."~"South Korea",
+                           TRUE~Country))
+
+Global.Slavery.Index=fread(paste0(hndl.in,'2023-Global-Slavery-Index.csv'))%>% # (The Walk Free Foundation 2023) https://www.walkfree.org/global-slavery-index/
+  data.frame%>%
+  rename(Value='Total.vulnerability.score..')%>%
+  mutate(Index='GSI',
+         Country=case_when(Country=="United States of America"~"United States",
+                           Country=="Viet Nam"~"Vietnam",
+                           TRUE~Country))
+
+Performance.indices=rbind(Environmental.Performance.Index,
+                          Global.ilicit.trade.index,
+                          Global.Slavery.Index)%>%
+                    spread(Index,Value)%>%
+                    mutate(Country=case_when(Country=="C\xf4te d'Ivoire"~"Ivory coast",
+                                             Country=="T\xfcrkiye"~"Turkiye",
+                                     TRUE~Country),
+                           Risk.EPI=case_when(EPI<30~'Mayor',
+                                              EPI<50 & EPI>30~'High',
+                                              EPI<70 & EPI>50~'Moderate',
+                                              EPI>70~'Minor'),
+                           Risk.GITI=case_when(GITI<30~'Mayor',
+                                               GITI<50 & GITI>30~'High',
+                                               GITI<70 & GITI>50~'Moderate',
+                                               GITI>70~'Minor'),
+                           Risk.GSI=case_when(GSI>70~'Mayor',
+                                              GSI>50 & GSI<70~'High',
+                                              GSI>30 & GSI<50~'Moderate',
+                                              GSI<30~'Minor'))
 
 #2. Plots
 fun1=function(d,Grups)
@@ -399,70 +468,128 @@ fun2=function(d,TITLE,KPTN,KLS,d.inset,UniT,NRW,thresld,
   
   return(list(p=p,Tab.commodities=Tab.inset))
 }
+fun3=function(d,UNITS,KLS,LINTYP,LINWID,TITLE=NULL,KPTN,Axs.t.siz,Axs.T.siz,Leg.siz)
+{
+  p=d%>%
+    filter(Units==UNITS)%>%
+    ggplot(aes(Year,Quantity))+
+    geom_line(aes(linetype = Type,linewidth = Type,color=Group))+
+    theme_PA(leg.siz=Leg.siz,axs.t.siz=Axs.t.siz,axs.T.siz=Axs.T.siz)+
+    theme(legend.title = element_blank(),
+          legend.position = 'right',
+          plot.caption = element_text(hjust = 0))+
+    scale_color_manual(values = KLS)+ 
+   # guides(color = guide_legend(nrow = 2, byrow = TRUE), 
+  #         linetype = guide_legend(nrow = 1, byrow = TRUE))+
+    ylab(UNITS)+
+    scale_linetype_manual(values = LINTYP)+
+    scale_linewidth_manual(values = LINWID)
+  if(!is.null(TITLE))p=p+labs(title = TITLE)
+  if(!is.null(KPTN))p=p+labs(caption = KPTN)
+  return(p)
+}
+fun4=function(d,UNITS,TITLE=NULL,KPTN,Axs.t.siz,Axs.T.siz,Leg.siz,NROW,KLS,nrow.leg,add.ylab=FALSE)
+{
+  YLB=''
+  if(add.ylab) YLB=UNITS
+  p=d%>%
+    mutate(Commodity=factor(Commodity,levels=names(KLS)))%>%
+    filter(Units==UNITS)%>%
+    ggplot(aes(x=Group,y=Quantity,fill=Commodity))+
+    geom_bar(position="stack", stat="identity")+
+    scale_fill_manual(values=KLS)+
+    facet_wrap(~Type,nrow=NROW,scales='free')+
+    theme_PA(leg.siz=Leg.siz,axs.t.siz=Axs.t.siz,axs.T.siz=Axs.T.siz)+
+    theme(plot.caption = element_text(hjust = 0),
+          axis.text.x = element_text(angle = 45, hjust = 1, vjust = 1),
+          legend.position = 'top',
+          legend.title = element_blank(),
+          panel.background = element_rect(fill = "transparent", colour = NA), 
+          plot.background = element_rect(fill = "transparent", colour = NA))+
+    guides(fill = guide_legend(nrow = nrow.leg, byrow = TRUE))+ylab(YLB)+xlab('')
+  if(!is.null(TITLE))p=p+labs(title = TITLE)
+  if(!is.null(KPTN))p=p+labs(caption = KPTN)
+  return(p)
+  
+}
 
-#2.1 Create each individual plot
+#2.1 Annual production, exports and imports
 
   #wild caught fisheries and aquaculture production
 a=fun1(d=Production_table2,
        Grups=c('Finfish','Rock lobsters & Prawns','Abalone & Scallops','Other crustaceans & molluscs'))%>%
   filter(!Group=="Other")
+
 Production=a%>%
-              group_by(Year,Units,Group)%>%
-              summarise(Quantity=sum(Quantity,na.rm=T))%>%
-              ungroup()%>%
-              ggplot(aes(Year,Quantity,color=Units))+
-              geom_line(linewidth=1.5)+facet_wrap(~Group,nrow=1)+
-              theme_minimal()+
-              theme(legend.position = 'top')+
-              labs(caption = 'Fisheries and aquaculture production (source:ABARES)')
+  group_by(Year,Units,Group)%>%
+  summarise(Quantity=sum(Quantity,na.rm=T))%>%
+  ungroup()%>%
+  mutate(Type='Production')
 
 
-  #wild caught fisheries only production
-a=fun1(d=Production_table3,
-       Grups=c('Finfish','Rock lobsters & Prawns','Abalone & Scallops','Other crustaceans & molluscs'))%>%
-  mutate(Commodity=gsub("\\.(?=[a-zA-Z])", " ", Commodity, perl = TRUE),
-         Commodity=case_when(Commodity=="sharks.. rays"~"sharks & rays",
+Production_breakdown=a%>%
+  group_by(Units,Group,Commodity)%>%
+  summarise(Quantity=sum(Quantity,na.rm=T))%>%
+  ungroup()%>%
+  mutate(Type='Production',
+         Commodity=case_when(Commodity=='other.finfish..sharks.and.rays'~'other finfish, sharks & rays',
+                             Commodity=='rock.lobsters'~'rock lobsters',
+                             Commodity=='other.crustaceans'~'other crustaceans',
+                             Commodity=='other.molluscs'~'other molluscs',
                              TRUE~Commodity),
          Commodity=capitalize(Commodity))
-KLs=c('skyblue1','chocolate3','cornsilk3','limegreen')
-names(KLs)=levels(a$Group)
-Production_wild.caught.only=fun2(d=a%>%
+
+  #wild caught fisheries only production
+do.this=FALSE
+if(do.this)
+{
+  a=fun1(d=Production_table3,
+         Grups=c('Finfish','Rock lobsters & Prawns','Abalone & Scallops','Other crustaceans & molluscs'))%>%
+    mutate(Commodity=gsub("\\.(?=[a-zA-Z])", " ", Commodity, perl = TRUE),
+           Commodity=case_when(Commodity=="sharks.. rays"~"sharks & rays",
+                               TRUE~Commodity),
+           Commodity=capitalize(Commodity))
+  KLs=c('skyblue1','chocolate3','cornsilk3','limegreen')
+  names(KLs)=levels(a$Group)
+  Production_wild.caught.only=fun2(d=a%>%
                                      filter(!Group=="Other nei")%>%
                                      group_by(Year,Units,Group)%>%
                                      summarise(Quantity=sum(Quantity,na.rm=T))%>%
                                      ungroup(),
-                                TITLE='Wild-caught fisheries production',
-                                KPTN='source: ABARES',
-                                KLS=KLs,
-                                d.inset=a%>%filter(!Group=="Other nei"),
-                                UniT="Volume (1000s tonnes)",
-                                NRW=1,
-                                thresld=0.9,
-                                add.inset=FALSE,
-                                inset.loc=data.frame(x = .565, y = .2, x.w = .5, x.h = .5),
-                                fill.inset="grey90",
-                                inset.txt.size=3.5,
-                                inset.txt.loc=.85,
-                                Min.other.crus.mol=100)
-
-Production_wild.caught.only_value=fun2(d=a%>%
+                                   TITLE='Wild-caught fisheries production',
+                                   KPTN='source: ABARES',
+                                   KLS=KLs,
+                                   d.inset=a%>%filter(!Group=="Other nei"),
+                                   UniT="Volume (1000s tonnes)",
+                                   NRW=1,
+                                   thresld=0.9,
+                                   add.inset=FALSE,
+                                   inset.loc=data.frame(x = .565, y = .2, x.w = .5, x.h = .5),
+                                   fill.inset="grey90",
+                                   inset.txt.size=3.5,
+                                   inset.txt.loc=.85,
+                                   Min.other.crus.mol=100)
+  
+  Production_wild.caught.only_value=fun2(d=a%>%
                                            filter(!Group=="Other nei")%>%
                                            group_by(Year,Units,Group)%>%
                                            summarise(Quantity=sum(Quantity,na.rm=T))%>%
                                            ungroup(),
-                                       TITLE='Wild-caught fisheries production',
-                                       KPTN='source: ABARES',
-                                       KLS=KLs,
-                                       d.inset=a%>%filter(!Group=="Other nei"),
-                                       UniT="Value (M AUD)",
-                                       NRW=1,
-                                       thresld=0.9,
-                                       add.inset=FALSE,
-                                       inset.loc=data.frame(x = .565, y = .2, x.w = .5, x.h = .5),
-                                       fill.inset="grey90",
-                                       inset.txt.size=3.5,
-                                       inset.txt.loc=.85,
-                                       Min.other.crus.mol=500)
+                                         TITLE='Wild-caught fisheries production',
+                                         KPTN='source: ABARES',
+                                         KLS=KLs,
+                                         d.inset=a%>%filter(!Group=="Other nei"),
+                                         UniT="Value (M AUD)",
+                                         NRW=1,
+                                         thresld=0.9,
+                                         add.inset=FALSE,
+                                         inset.loc=data.frame(x = .565, y = .2, x.w = .5, x.h = .5),
+                                         fill.inset="grey90",
+                                         inset.txt.size=3.5,
+                                         inset.txt.loc=.85,
+                                         Min.other.crus.mol=500)
+  
+}
 
   #exports by commodity  
 a=fun1(d=Production_table13,
@@ -473,14 +600,73 @@ a=fun1(d=Production_table13,
                              Commodity=="other crustaceans and molluscs"~"other crustaceans & molluscs",
                              TRUE~Commodity),
          Commodity=capitalize(Commodity))
-KLs=c('skyblue1','chocolate3','cornsilk3','limegreen')
-names(KLs)=levels(a$Group)
+Exports=a%>%
+  group_by(Year,Units,Group)%>%
+  summarise(Quantity=sum(Quantity,na.rm=T))%>%
+  ungroup()%>%
+  mutate(Type='Exports')
+Exports_breakdown=a%>%
+  group_by(Units,Group,Commodity)%>%
+  summarise(Quantity=sum(Quantity,na.rm=T))%>%
+  ungroup()%>%
+  mutate(Type='Exports',
+         Commodity=capitalize(Commodity))
 
-Exports_commodity=fun2(d=a%>%
+if(do.this)
+{
+  KLs=c('skyblue1','chocolate3','cornsilk3','limegreen')
+  names(KLs)=levels(a$Group)
+  Exports_commodity=fun2(d=a%>%
                            group_by(Year,Units,Group)%>%
                            summarise(Quantity=sum(Quantity,na.rm=T))%>%
                            ungroup(),
-                       TITLE='Edible exports by commodity',
+                         TITLE='Edible exports by commodity',
+                         KPTN='source: ABARES',
+                         KLS=KLs,
+                         d.inset=a,
+                         UniT="Volume (1000s tonnes)",
+                         NRW=1,
+                         thresld=0.9,
+                         add.inset=FALSE,
+                         inset.loc=data.frame(x = .565, y = .2, x.w = .5, x.h = .5),
+                         fill.inset="grey90",
+                         inset.txt.size=3.5,
+                         inset.txt.loc=.85,
+                         Min.other.crus.mol=100)
+  
+  Exports_commodity_value=fun2(d=a%>%
+                                 group_by(Year,Units,Group)%>%
+                                 summarise(Quantity=sum(Quantity,na.rm=T))%>%
+                                 ungroup(),
+                               TITLE='Edible exports by commodity',
+                               KPTN='source: ABARES',
+                               KLS=KLs,
+                               d.inset=a,
+                               UniT="Value (M AUD)",
+                               NRW=1,
+                               thresld=0.9,
+                               add.inset=FALSE,
+                               inset.loc=data.frame(x = .565, y = .2, x.w = .5, x.h = .5),
+                               fill.inset="grey90",
+                               inset.txt.size=3.5,
+                               inset.txt.loc=.85,
+                               Min.other.crus.mol=100)
+  
+}
+
+  #exports by country 
+if(do.this)
+{
+  a=fun1.country(d=Production_table14,
+                 Grups=c("Americas","Asia","Europe","Oceania","Other"))%>%
+    mutate(Commodity=gsub("\\.(?=[a-zA-Z])", " ", Commodity, perl = TRUE))
+  KLs=c('slateblue4','sienna','wheat2','olivedrab','red2')
+  names(KLs)=levels(a$Group)
+  Exports_country=fun2(d=a%>%
+                         group_by(Year,Units,Group)%>%
+                         summarise(Quantity=sum(Quantity,na.rm=T))%>%
+                         ungroup(),
+                       TITLE='Edible exports by continent',
                        KPTN='source: ABARES',
                        KLS=KLs,
                        d.inset=a,
@@ -493,12 +679,12 @@ Exports_commodity=fun2(d=a%>%
                        inset.txt.size=3.5,
                        inset.txt.loc=.85,
                        Min.other.crus.mol=100)
-
-Exports_commodity_value=fun2(d=a%>%
-                                 group_by(Year,Units,Group)%>%
-                                 summarise(Quantity=sum(Quantity,na.rm=T))%>%
-                                 ungroup(),
-                             TITLE='Edible exports by commodity',
+  
+  Exports_country_value=fun2(d=a%>%
+                               group_by(Year,Units,Group)%>%
+                               summarise(Quantity=sum(Quantity,na.rm=T))%>%
+                               ungroup(),
+                             TITLE='Edible exports by continent',
                              KPTN='source: ABARES',
                              KLS=KLs,
                              d.inset=a,
@@ -511,48 +697,8 @@ Exports_commodity_value=fun2(d=a%>%
                              inset.txt.size=3.5,
                              inset.txt.loc=.85,
                              Min.other.crus.mol=100)
-
-  #exports by country  
-a=fun1.country(d=Production_table14,
-               Grups=c("Americas","Asia","Europe","Oceania","Other"))%>%
-  mutate(Commodity=gsub("\\.(?=[a-zA-Z])", " ", Commodity, perl = TRUE))
-KLs=c('slateblue4','sienna','wheat2','olivedrab','red2')
-names(KLs)=levels(a$Group)
-Exports_country=fun2(d=a%>%
-                       group_by(Year,Units,Group)%>%
-                       summarise(Quantity=sum(Quantity,na.rm=T))%>%
-                       ungroup(),
-                     TITLE='Edible exports by continent',
-                     KPTN='source: ABARES',
-                     KLS=KLs,
-                     d.inset=a,
-                     UniT="Volume (1000s tonnes)",
-                     NRW=1,
-                     thresld=0.9,
-                     add.inset=FALSE,
-                     inset.loc=data.frame(x = .565, y = .2, x.w = .5, x.h = .5),
-                     fill.inset="grey90",
-                     inset.txt.size=3.5,
-                     inset.txt.loc=.85,
-                     Min.other.crus.mol=100)
-
-Exports_country_value=fun2(d=a%>%
-                             group_by(Year,Units,Group)%>%
-                             summarise(Quantity=sum(Quantity,na.rm=T))%>%
-                             ungroup(),
-                           TITLE='Edible exports by continent',
-                           KPTN='source: ABARES',
-                           KLS=KLs,
-                           d.inset=a,
-                           UniT="Value (M AUD)",
-                           NRW=1,
-                           thresld=0.9,
-                           add.inset=FALSE,
-                           inset.loc=data.frame(x = .565, y = .2, x.w = .5, x.h = .5),
-                           fill.inset="grey90",
-                           inset.txt.size=3.5,
-                           inset.txt.loc=.85,
-                           Min.other.crus.mol=100)
+  
+}
 
   #imports by commodity  
 a=fun1(d=Production_table15,
@@ -564,14 +710,73 @@ a=fun1(d=Production_table15,
                              Commodity=="other crustaceans and molluscs"~"other crustaceans & molluscs",
                              TRUE~Commodity),
          Commodity=capitalize(Commodity))
-KLs=c('skyblue1','chocolate3','cornsilk3','limegreen')
-names(KLs)=levels(a$Group)
+Imports=a%>%
+  group_by(Year,Units,Group)%>%
+  summarise(Quantity=sum(Quantity,na.rm=T))%>%
+  ungroup()%>%
+  mutate(Type='Imports')
+Imports_breakdown=a%>%
+  group_by(Units,Group,Commodity)%>%
+  summarise(Quantity=sum(Quantity,na.rm=T))%>%
+  ungroup()%>%
+  mutate(Type='Imports',
+         Commodity=capitalize(Commodity))
+if(do.this)
+{
+  KLs=c('skyblue1','chocolate3','cornsilk3','limegreen')
+  names(KLs)=levels(a$Group)
+  
+  Imports_commodity=fun2(d=a%>%
+                           group_by(Year,Units,Group)%>%
+                           summarise(Quantity=sum(Quantity,na.rm=T))%>%
+                           ungroup(),
+                         TITLE='Edible imports by commodity',
+                         KPTN='source: ABARES',
+                         KLS=KLs,
+                         d.inset=a,
+                         UniT="Volume (1000s tonnes)",
+                         NRW=1,
+                         thresld=0.9,
+                         add.inset=FALSE,
+                         inset.loc=data.frame(x = .565, y = .2, x.w = .5, x.h = .5),
+                         fill.inset="grey90",
+                         inset.txt.size=3.5,
+                         inset.txt.loc=.85,
+                         Min.other.crus.mol=100)
+  
+  Imports_commodity_value=fun2(d=a%>%
+                                 group_by(Year,Units,Group)%>%
+                                 summarise(Quantity=sum(Quantity,na.rm=T))%>%
+                                 ungroup(),
+                               TITLE='Edible imports by commodity',
+                               KPTN='source: ABARES',
+                               KLS=KLs,
+                               d.inset=a,
+                               UniT="Value (M AUD)",
+                               NRW=1,
+                               thresld=0.9,
+                               add.inset=FALSE,
+                               inset.loc=data.frame(x = .565, y = .2, x.w = .5, x.h = .5),
+                               fill.inset="grey90",
+                               inset.txt.size=3.5,
+                               inset.txt.loc=.85,
+                               Min.other.crus.mol=100)
+  
+}
 
-Imports_commodity=fun2(d=a%>%
+  #imports by country
+if(do.this)
+{
+  a=fun1.country(d=Production_table16,
+                 Grups=c("Americas","Asia","Europe","Oceania","Africa","Other"))%>%
+    mutate(Commodity=gsub("\\.(?=[a-zA-Z])", " ", Commodity, perl = TRUE))
+  KLs=c('slateblue4','sienna','wheat2','olivedrab','lightblue3','red2')
+  names(KLs)=levels(a$Group)
+  Imports_country=fun2(d=a%>%
                          group_by(Year,Units,Group)%>%
                          summarise(Quantity=sum(Quantity,na.rm=T))%>%
                          ungroup(),
-                       TITLE='Edible imports by commodity',
+                       TITLE='Edible imports by continent',
                        KPTN='source: ABARES',
                        KLS=KLs,
                        d.inset=a,
@@ -584,12 +789,12 @@ Imports_commodity=fun2(d=a%>%
                        inset.txt.size=3.5,
                        inset.txt.loc=.85,
                        Min.other.crus.mol=100)
-
-Imports_commodity_value=fun2(d=a%>%
+  
+  Imports_country_value=fun2(d=a%>%
                                group_by(Year,Units,Group)%>%
                                summarise(Quantity=sum(Quantity,na.rm=T))%>%
                                ungroup(),
-                             TITLE='Edible imports by commodity',
+                             TITLE='Edible imports by continent',
                              KPTN='source: ABARES',
                              KLS=KLs,
                              d.inset=a,
@@ -602,122 +807,149 @@ Imports_commodity_value=fun2(d=a%>%
                              inset.txt.size=3.5,
                              inset.txt.loc=.85,
                              Min.other.crus.mol=100)
-
-  #imports by country  
-a=fun1.country(d=Production_table16,
-               Grups=c("Americas","Asia","Europe","Oceania","Africa","Other"))%>%
-  mutate(Commodity=gsub("\\.(?=[a-zA-Z])", " ", Commodity, perl = TRUE))
-KLs=c('slateblue4','sienna','wheat2','olivedrab','lightblue3','red2')
-names(KLs)=levels(a$Group)
-Imports_country=fun2(d=a%>%
-                       group_by(Year,Units,Group)%>%
-                       summarise(Quantity=sum(Quantity,na.rm=T))%>%
-                       ungroup(),
-                     TITLE='Edible imports by continent',
-                     KPTN='source: ABARES',
-                     KLS=KLs,
-                     d.inset=a,
-                     UniT="Volume (1000s tonnes)",
-                     NRW=1,
-                     thresld=0.9,
-                     add.inset=FALSE,
-                     inset.loc=data.frame(x = .565, y = .2, x.w = .5, x.h = .5),
-                     fill.inset="grey90",
-                     inset.txt.size=3.5,
-                     inset.txt.loc=.85,
-                     Min.other.crus.mol=100)
-
-Imports_country_value=fun2(d=a%>%
-                             group_by(Year,Units,Group)%>%
-                             summarise(Quantity=sum(Quantity,na.rm=T))%>%
-                             ungroup(),
-                           TITLE='Edible imports by continent',
-                           KPTN='source: ABARES',
-                           KLS=KLs,
-                           d.inset=a,
-                           UniT="Value (M AUD)",
-                           NRW=1,
-                           thresld=0.9,
-                           add.inset=FALSE,
-                           inset.loc=data.frame(x = .565, y = .2, x.w = .5, x.h = .5),
-                           fill.inset="grey90",
-                           inset.txt.size=3.5,
-                           inset.txt.loc=.85,
-                           Min.other.crus.mol=100)
-
-
-#Commodity imports and exports by Country and year  #ACA
-#Missing. Using dummy, for this I need to know TradeCode common name in ABARES_trade_data
-dummy=expand.grid(Commodity=c('Finfish','Crustaceans','Molluscs'),
-                  Country=c('Japan','United States','Thailand'),
-                  Year=c(1989,2021),
-                  Trade.flow=c('import','export'))%>%
   
-  mutate(Value=case_when(Year==1989 & Commodity=='Finfish' & Trade.flow=='import' & Country=='Japan' ~10,
-                         Year==1989 & Commodity=='Finfish' & Trade.flow=='import'& Country=='United States'~8,
-                         Year==1989 & Commodity=='Finfish' & Trade.flow=='import'& Country=='Thailand'~1,
-                         Year==1989 & Commodity=='Crustaceans' & Trade.flow=='import' & Country=='Japan' ~3,
-                         Year==1989 & Commodity=='Crustaceans' & Trade.flow=='import'& Country=='United States'~3,
-                         Year==1989 & Commodity=='Crustaceans' & Trade.flow=='import'& Country=='Thailand'~2,
-                         Year==1989 & Commodity=='Molluscs' & Trade.flow=='import' & Country=='Japan' ~1,
-                         Year==1989 & Commodity=='Molluscs' & Trade.flow=='import'& Country=='United States'~3,
-                         Year==1989 & Commodity=='Molluscs' & Trade.flow=='import'& Country=='Thailand'~4,
-                         
-                         Year==1989 & Commodity=='Finfish' & Trade.flow=='export' & Country=='Japan' ~30,
-                         Year==1989 & Commodity=='Finfish' & Trade.flow=='export'& Country=='United States'~15,
-                         Year==1989 & Commodity=='Finfish' & Trade.flow=='export'& Country=='Thailand'~1,
-                         Year==1989 & Commodity=='Crustaceans' & Trade.flow=='export' & Country=='Japan' ~100,
-                         Year==1989 & Commodity=='Crustaceans' & Trade.flow=='export'& Country=='United States'~50,
-                         Year==1989 & Commodity=='Crustaceans' & Trade.flow=='export'& Country=='Thailand'~20,
-                         Year==1989 & Commodity=='Molluscs' & Trade.flow=='export' & Country=='Japan' ~5,
-                         Year==1989 & Commodity=='Molluscs' & Trade.flow=='export'& Country=='United States'~1,
-                         Year==1989 & Commodity=='Molluscs' & Trade.flow=='export'& Country=='Thailand'~1,
-                         
-                         Year==2021 & Commodity=='Finfish' & Trade.flow=='import' & Country=='Japan' ~7,
-                         Year==2021 & Commodity=='Finfish' & Trade.flow=='import'& Country=='United States'~4,
-                         Year==2021 & Commodity=='Finfish' & Trade.flow=='import'& Country=='Thailand'~100,
-                         Year==2021 & Commodity=='Crustaceans' & Trade.flow=='import' & Country=='Japan' ~20,
-                         Year==2021 & Commodity=='Crustaceans' & Trade.flow=='import'& Country=='United States'~10,
-                         Year==2021 & Commodity=='Crustaceans' & Trade.flow=='import'& Country=='Thailand'~40,
-                         Year==2021 & Commodity=='Molluscs' & Trade.flow=='import' & Country=='Japan' ~10,
-                         Year==2021 & Commodity=='Molluscs' & Trade.flow=='import'& Country=='United States'~30,
-                         Year==2021 & Commodity=='Molluscs' & Trade.flow=='import'& Country=='Thailand'~100,
-                         
-                         Year==2021 & Commodity=='Finfish' & Trade.flow=='export' & Country=='Japan' ~50,
-                         Year==2021 & Commodity=='Finfish' & Trade.flow=='export'& Country=='United States'~50,
-                         Year==2021 & Commodity=='Finfish' & Trade.flow=='export'& Country=='Thailand'~1,
-                         Year==2021 & Commodity=='Crustaceans' & Trade.flow=='export' & Country=='Japan' ~200,
-                         Year==2021 & Commodity=='Crustaceans' & Trade.flow=='export'& Country=='United States'~150,
-                         Year==2021 & Commodity=='Crustaceans' & Trade.flow=='export'& Country=='Thailand'~40,
-                         Year==2021 & Commodity=='Molluscs' & Trade.flow=='export' & Country=='Japan' ~80,
-                         Year==2021 & Commodity=='Molluscs' & Trade.flow=='export'& Country=='United States'~10,
-                         Year==2021 & Commodity=='Molluscs' & Trade.flow=='export'& Country=='Thailand'~1))
-dummy$unit='Volume (1000s tonnes)'
+}
 
+  #plot together
+MIN.yr=min(Production$Year)
+MAX.yr=max(Production$Year)  #Past 2011, there is no export data on abalone
+#MAX.yr=2011
+d=rbind(Production,Exports,Imports)%>%
+            mutate(Group=as.character(Group),
+                   Group=case_when(Group=='Rock lobsters & Prawns'~'Rock lobsters\n& Prawns',
+                                   Group=='Abalone & Scallops'~'Abalone\n & Scallops',
+                                   Group=='Other crustaceans & molluscs'~'Other crustaceans\n & molluscs',
+                                   TRUE~Group),
+                   Group=factor(Group,levels=c("Finfish","Rock lobsters\n& Prawns",
+                                               "Abalone\n & Scallops","Other crustaceans\n & molluscs")),
+                   Type=factor(Type,levels=c('Production','Exports','Imports')))%>%
+            filter(Year>=MIN.yr)
+KLs=c('skyblue1','chocolate3','cornsilk3','limegreen')
+names(KLs)=levels(d$Group)
+Production.exports.imports=fun3(d=d,
+                                UNITS="Volume (1000s tonnes)",
+                                KLS=KLs,
+                                LINTYP=c("Production" = "twodash", "Exports" = "dotted", "Imports" = "solid"),
+                                LINWID=c("Production" = 2, "Exports" = 1.5, "Imports" = .8),
+                                KPTN=c('Production= Fisheries and aquaculture production\nExports=Edible exports\nImports=Edible imports\n(source: ABARES, australian-fisheries-and-aquaculture-statistics-2022)'),
+                                Axs.t.siz=12, Axs.T.siz=16, Leg.siz=11)
 
+Production.exports.imports_value=fun3(d=d,
+                                      UNITS="Value (M AUD)",
+                                      KLS=KLs,
+                                      LINTYP=c("Production" = "twodash", "Exports" = "dotted", "Imports" = "solid"),
+                                      LINWID=c("Production" = 2, "Exports" = 1.5, "Imports" = .8),
+                                      KPTN=c('Production= Fisheries and aquaculture production\nExports=Edible exports\nImports=Edible imports\n(source: ABARES, australian-fisheries-and-aquaculture-statistics-2022)'),
+                                      Axs.t.siz=12, Axs.T.siz=16, Leg.siz=11)
+
+d=rbind(Production_breakdown,Exports_breakdown,Imports_breakdown)%>%
+  mutate(Commodity=case_when(Commodity%in%c("Other finfish, sharks & rays",
+                                            "Sharks and rays")~"Other finfish,\nsharks & rays",
+                             Commodity=="Ornamental fish"~"Ornamental\nfish",
+                             Commodity%in%c("Other crustaceans","Other molluscs",
+                                            "Other crustaceans & molluscs")~"Other crustaceans\n& molluscs",
+                             Commodity=="Rock lobsters"~"Rock\nlobsters",
+                             Commodity%in%c("Squids","Squid and octopus")~"Squid & octopus",
+                             TRUE~Commodity),
+         Group=as.character(Group),
+         Group=case_when(Group=='Rock lobsters & Prawns'~'Rock lobsters\n& Prawns',
+                         Group=='Abalone & Scallops'~'Abalone\n & Scallops',
+                         Group=='Other crustaceans & molluscs'~'Other crustaceans\n & molluscs',
+                         TRUE~Group),
+         Group=factor(Group,levels=c("Finfish","Rock lobsters\n& Prawns",
+                                     "Abalone\n & Scallops","Other crustaceans\n & molluscs")),
+         Type=factor(Type,levels=c('Production','Exports','Imports')))%>%
+  group_by(Units,Group,Commodity,Type)%>%
+  summarise(Quantity=sum(Quantity,na.rm=T))%>%
+  ungroup()
+Kls.com=c("Hakes"="skyblue","Herrings"="turquoise","Ornamental\nfish"="steelblue",
+          "Salmonids"="royalblue3","Swordfish"="slategray1",
+          "Toothfish"="navyblue","Tunas"="slateblue","Other finfish,\nsharks & rays"="skyblue4",
+          "Prawns"="sienna1","Rock\nlobsters"="chocolate4",
+          "Abalone"="cornsilk3","Scallops"="cornsilk1",
+          "Crabs"="limegreen","Mussels"="lawngreen","Oysters"="lightgreen",
+          "Squid & octopus"="forestgreen","Other crustaceans\n& molluscs"="olivedrab")
+Production.exports.imports_breakdown=fun4(d,
+                                          UNITS="Volume (1000s tonnes)",
+                                          KPTN=NULL,
+                                          Axs.t.siz=10, Axs.T.siz=10, Leg.siz=10,
+                                          NROW=1,
+                                          KLS=Kls.com,
+                                          nrow.leg=3)
+Production.exports.imports_breakdown_value=fun4(d,
+                                          UNITS="Value (M AUD)",
+                                          KPTN=NULL,
+                                          Axs.t.siz=10, Axs.T.siz=10, Leg.siz=10,
+                                          NROW=1,
+                                          KLS=Kls.com,
+                                          nrow.leg=3)
+
+#2.3 Combine relevant plots
+plot_grid(Production.exports.imports,Production.exports.imports_breakdown,
+          p.trade[[1]], p.trade[[2]], nrow=2,ncol = 2, labels = c("A", "B","C","D"), rel_heights = c(.6, 1))
+
+#ACA
+#2.2 Commodity imports and exports by Country and year  
+#missing: simplify red, yellow, orange, green (as my risk assessment) based on risk (all indices combined)
+KLS.country=c("Thailand"="red","China"="red4","New Zealand"="green","Vietnam"="coral3",
+              "Japan"="limegreen","Indonesia"="orangered3",
+              "United States"="green4","Malaysia"="peru",
+              "Taiwan"="greenyellow","Singapore"="mediumseagreen",
+              "South Africa"="chocolate","Chile"="chartreuse3",
+              "Canada"="olivedrab3","Norway"="forestgreen","Argentina"="darkorange4",
+              "South Korea"="gold","Other"='grey')
+
+  #Map of Australia
 Australia <- ne_states(country = "Australia", returnclass = "sf")
 Limy=c(-42,-12)
-Limx=c(105,165)
+Limx=c(100,160)
 p_Map=ggplot(data = Australia) +
-  geom_sf(color = "black", fill = "grey80") +
+  geom_sf(color = "grey60", fill = "grey95",alpha=.5) +
   xlab("") + ylab("")+
   coord_sf(xlim =Limx , ylim = Limy, expand = T)+
   theme_void()
 
-
-fn.barplt=function(d,yr,trade,Unit,show.LGN=FALSE,Y.lbl='',axs.size=13,lg.size=14,yMX=max(dummy$Value))
+  #Plotting functions
+fn.barplt=function(d,show.LGN=FALSE,Y.lbl='',axs.size=13,lg.size=14,yMX,custom_colors,LBL.size=4)
 {
+  if(is.null(yMX)) yMX=sum(d$Var)
   p=d%>%
-    filter(Year==yr & Trade.flow==trade & unit==Unit)%>%
-    ggplot(aes(x=Commodity,y=Value,fill=Country))+
+    ggplot(aes(x=1,y=.data[['Var']],fill=.data[['Country']]))+
     geom_bar(position="stack", stat="identity")+
-    theme_PA(axs.t.siz=axs.size,leg.siz=lg.size)+xlab('')+ylab(Y.lbl)+
-    theme(legend.position = 'top',
+    scale_fill_manual(drop = FALSE,values = custom_colors,breaks = levels(d$Country))+
+    theme_PA(axs.t.siz=axs.size,leg.siz=lg.size)+xlab('')+ylab(Y.lbl)+ylim(0,yMX)+
+    theme(axis.ticks.x = element_blank(),
+          axis.text.x=element_blank(),
+          legend.position = 'top',
           legend.title = element_blank(),
           panel.background = element_rect(fill = "transparent", colour = NA), 
-          plot.background = element_rect(fill = "transparent", colour = NA))+
-    ylim(0,yMX)
-  if(!show.LGN)p=p+theme(legend.position = 'none')
+          plot.background = element_rect(fill = "transparent", colour = NA))
+  Legend<<-g_legend(p)
+  if(!show.LGN) p=p+theme(legend.position = 'none')
+  
+  p=p+
+    geom_text_repel(aes(label = Country),
+                    position = position_stack(vjust = 0.5),
+                    max.overlaps= getOption("ggrepel.max.overlaps", default = 20),
+                    size = LBL.size, 
+                    xlim = c(1e3, NA),
+                    color = "black", 
+                    direction = "y", 
+                    segment.linetype = "dotted",
+                    segment.size = .7,
+                    segment.alpha = .5,
+                    min.segment.length = 2, 
+                    segment.curvature = -0.1,
+                    segment.ncp = 3,
+                    segment.angle = 20,
+                    box.padding = .3)+ 
+    coord_cartesian(clip = "off",ylim = c(0,yMX))+
+    theme_stacked_bar()+
+    theme(axis.text = element_text(size = axs.size),
+          axis.text.y = element_text(angle = 90, hjust = 0.5),
+          plot.margin = unit(c(0.2,4,0,0), "cm"))+ # ("left", "right", "bottom", "top")
+    scale_y_continuous(labels = comma) 
+  
   return(p)
 }
 g_legend <- function(a.gplot){ 
@@ -726,77 +958,238 @@ g_legend <- function(a.gplot){
   legend <- tmp$grobs[[leg]] 
   legend
 } 
+fn.barplt2=function(dd,Ylab,LGN.titl,LGN.pos=c(0.7, 0.1),Axs.t.siz=12,Leg.siz=12,bckf.fil="grey99")
+{
+  if(!i==1)  LGN.pos = 'none'
+  p=dd%>%
+    mutate(TradeFlow=factor(TradeFlow,levels=c('Imports','Exports')))%>%
+    ggplot(aes(Commodity,Var,fill=TradeFlow))+
+    geom_bar(stat = 'identity',show.legend = FALSE)+
+    coord_flip()+
+    theme_PA(axs.t.siz=Axs.t.siz,leg.siz=Leg.siz)+ylab(Ylab)+xlab('')+ scale_y_continuous(labels = comma)+
+    theme(legend.position = LGN.pos,
+          legend.key = element_rect(fill = "transparent"),
+          panel.background = element_rect(fill = bckf.fil, colour = NA), 
+          plot.background = element_rect(fill = "transparent", colour = NA),
+          legend.background = element_rect(fill = "transparent"),
+          legend.box.background = element_blank())
+  if(any(!LGN.pos=='none'))
+  {
+    p=p+geom_point(aes(y = 0, color = TradeFlow), size = 0, shape = 15) +
+      guides(fill = guide_legend(nrow=1,override.aes = list(size = 3)))
+  }
+  
+  if(is.null(LGN.titl)) p=p+theme(legend.title = element_blank())
+  if(!is.null(LGN.titl)) p=p+guides(fill=guide_legend(title=LGN.titl))
+  
+  return(p)
+}
 
-#Original year
-p1.imp=fn.barplt(d=dummy%>%filter(Commodity=='Finfish'),yr=1989,trade='import',
-                 Unit='Volume (1000s tonnes)',show.LGN=TRUE)
-legend <- g_legend(p1.imp)
-p1.imp=p1.imp+theme(legend.position = 'none')
-p2.imp=fn.barplt(d=dummy%>%filter(Commodity=='Crustaceans'),yr=1989,trade='import',
-                 Unit='Volume (1000s tonnes)',Y.lbl='Volume (1000s tonnes)')
-p3.imp=fn.barplt(d=dummy%>%filter(Commodity=='Molluscs'),yr=1989,trade='import',Unit='Volume (1000s tonnes)')
-p1.exp=fn.barplt(d=dummy%>%filter(Commodity=='Finfish'),yr=1989,trade='export',Unit='Volume (1000s tonnes)')
-p2.exp=fn.barplt(d=dummy%>%filter(Commodity=='Crustaceans'),yr=1989,trade='export',Unit='Volume (1000s tonnes)')
-p3.exp=fn.barplt(d=dummy%>%filter(Commodity=='Molluscs'),yr=1989,trade='export',Unit='Volume (1000s tonnes)')
-p.original=ggdraw() +
-  draw_plot(p_Map+
-              labs(title=1989)+theme(plot.title = element_text(hjust=0.5,vjust = 12.5,size=30))+
-              geom_curve(data=data.frame(x=112,y=c(-15,-30,-39),
-                                         x.end=130,y.end=c(-25,-26,-28)),
-                         aes(x = x, y = y, xend = x.end, yend = y.end),size = 1.5,
-                         arrow = arrow(length = unit(0.3, "cm"), type = "open"),
-                         color = "brown4", curvature = 0.2,show.legend = FALSE)+
-              geom_curve(data=data.frame(x=135,y=c(-25,-26,-28),
-                                         x.end=158,y.end=c(-15,-30,-38)),
-                         aes(x = x, y = y, xend = x.end, yend = y.end),size = 1.5,
-                         arrow = arrow(length = unit(0.3, "cm"), type = "open"),
-                         color = "brown4", curvature = 0.2,show.legend = FALSE))+
-  draw_plot(legend, x = 0.4, y = .8, width = .2, height = .1)+
-  draw_plot(p1.imp, x = 0, y = .6, width = .15, height = .3)+
-  draw_plot(p2.imp, x = 0, y = .3, width = .15, height = .3)+
-  draw_plot(p3.imp, x = 0, y = 0, width = .15, height = .3)+
-  draw_plot(p1.exp, x = .8, y = .6, width = .15, height = .3)+
-  draw_plot(p2.exp, x = .8, y = .3, width = .15, height = .3)+
-  draw_plot(p3.exp, x = .8, y = 0, width = .15, height = .3) 
+  #Get trade data
+Non.comsumption=c('Ornamental finfish')
+dummy_group=ABARES_trade_data%>%
+  filter(!Group1%in%Non.comsumption)%>%
+  group_by(Group2,Calendar_year,Country,Continent,TradeFlow)%>%
+  summarise(Value_millions=sum(Value_millions,na.rm=T),Quantity_tonnes=sum(Quantity_tonnes,na.rm=T))%>%
+  ungroup()%>%
+  rename(Group=Group2,
+         Year=Calendar_year)
+dummy_group.commodity=ABARES_trade_data%>%
+  filter(!Group1%in%Non.comsumption)%>%
+  group_by(Group1,Group2,Calendar_year,Country,Continent,TradeFlow)%>%
+  summarise(Value_millions=sum(Value_millions,na.rm=T),Quantity_tonnes=sum(Quantity_tonnes,na.rm=T))%>%
+  ungroup()%>%
+  rename(Commodity=Group1,
+         Group=Group2,
+         Year=Calendar_year)
+Explain.prop=0.8
+Top.countries=dummy_group%>%
+                group_by(Country)%>%
+                summarise(Val=sum(Quantity_tonnes,na.rm=T))%>%
+                ungroup()%>%
+                arrange(-Val)%>%
+                mutate(CumSum=cumsum(Val),
+                       Prop=CumSum/sum(Val),
+                       Country1=ifelse((Prop - Explain.prop)<=0,Country,'Other'),
+                       Country1=case_when(Country1=='Korea, Republic of (South)'~'South Korea',
+                                          TRUE~Country1))
+Top.countries.value=dummy_group%>%
+                group_by(Country)%>%
+                summarise(Val=sum(Value_millions,na.rm=T))%>%
+                ungroup()%>%
+                arrange(-Val)%>%
+                mutate(CumSum=cumsum(Val),
+                       Prop=CumSum/sum(Val),
+                       Country1=ifelse((Prop - Explain.prop)<=0,Country,'Other'),
+                       Country1=case_when(Country1=='Korea, Republic of (South)'~'South Korea',
+                                          TRUE~Country1))
+
+d1=dummy_group%>%
+  left_join(Top.countries%>%
+              dplyr::select(Country,Country1),by='Country')%>%
+  dplyr::select(-Country)%>%rename(Country=Country1)%>%
+  mutate(Country=factor(Country,levels=unique(Top.countries$Country1)))%>%
+  group_by(Country,TradeFlow,Year)%>%
+  summarise(Quantity_tonnes=sum(Quantity_tonnes,na.rm=T),Value_millions=sum(Value_millions,na.rm=T))
+
+d1_commodity=dummy_group.commodity%>%
+              group_by(Commodity,TradeFlow,Year)%>%
+              summarise(Quantity_tonnes=sum(Quantity_tonnes,na.rm=T),Value_millions=sum(Value_millions,na.rm=T))%>%
+              ungroup()%>%
+              mutate(Commodity=case_when(Commodity=="Tilapias, catfish, Nile perch & Carps"~"Tilapias, catfish,\nNile perch & carps",
+                                      #   Commodity=="Anchovies & sardines"~"Anchovies &\nsardines",
+                                      #   Commodity=="Salmons & trouts"~"Salmons &\ntrouts",
+                                         Commodity=="Dried fish; fish oil, livers & extracts"~"Dried fish, fish oil,\nlivers & extracts",
+                                         TRUE~Commodity))
+
+#ACA
+  #Create plots by year for tonnage
+Yr.list=c(MIN.yr,MAX.yr)
+p.yr.list=vector('list',length=length(Yr.list))
+names(p.yr.list)=Yr.list
+
+    #map & countries
+for(i in 1:length(p.yr.list))
+{
+  dd=d1%>%
+    filter(Year==Yr.list[i] & TradeFlow=='Imports')%>%
+    rename(Var=Quantity_tonnes)%>%
+    mutate(Var=Var/1000)
+  imp.flow=sum(dd$Var)
+  imports=fn.barplt(d=dd,show.LGN=FALSE,Y.lbl='1000s Tonnes',yMX=NULL,custom_colors=KLS.country,LBL.size=3)
+  
+  dd=d1%>%
+    filter(Year==Yr.list[i] & TradeFlow=='Exports')%>%
+    rename(Var=Quantity_tonnes)%>%
+    mutate(Var=Var/1000)
+  exp.flow=sum(dd$Var)
+  exports=fn.barplt(d=dd,show.LGN=FALSE,Y.lbl='',yMX=NULL,custom_colors=KLS.country,LBL.size=3)
+  p.yr.list[[i]]=list(imports=imports,exports=exports,imp.flow=imp.flow,exp.flow=exp.flow)
+}
+
+#commodities
+p.trade.comm=p.yr.list
+for(i in 1:length(p.yr.list))
+{
+  p.trade.comm[[i]]=fn.barplt2(dd=d1_commodity%>%
+                                 filter(Year==Yr.list[i])%>%
+                                 rename(Var=Quantity_tonnes)%>%
+                                 mutate(Var=Var/1000)%>%
+                                 group_by(TradeFlow)%>%
+                                 arrange(TradeFlow,-Var)%>%
+                                 mutate(CumSum=cumsum(Var),
+                                        Prop=CumSum/sum(Var),
+                                        Commodity=ifelse(Prop<=0.9,Commodity,'Other'))%>%
+                                 ungroup()%>%
+                                 group_by(Commodity,TradeFlow)%>%
+                                 summarise(Var=sum(Var)),
+                               Ylab="", #"1000s Tonnes"
+                               LGN.titl=NULL, #Yr.list[i]
+                               LGN.pos=c(0.2,1.05),
+                               Axs.t.siz=9,Leg.siz=15,
+                               bckf.fil="transparent") 
+  
+}
+
+#combine  & countries with commodities
+p.trade=p.yr.list
+MX.flow=max(c(with(p.yr.list[[1]],c(imp.flow,exp.flow)),with(p.yr.list[[2]],c(imp.flow,exp.flow))))
+for(i in 1:length(p.yr.list))
+{
+  Arrow.dat=data.frame(Trade=c('Imports','Exports'),
+                       x=c(98,150),
+                       y=c(-18,-25),
+                       x.end=c(115,160),
+                       y.end=c(-25,-18),
+                       Flow=with(p.yr.list[[i]],c(5*imp.flow/MX.flow,5*exp.flow/MX.flow)))
+  
+  p.trade[[i]]=ggdraw() +
+    draw_plot(p_Map+
+                labs(title=names(p.yr.list)[i])+theme(plot.title = element_text(hjust=0.5,size=30))+
+                geom_curve(data=Arrow.dat,
+                           aes(x = x, y = y, xend = x.end, yend = y.end),size = Arrow.dat$Flow,
+                           arrow = arrow(length = unit(0.8, "cm"), type = "open"),
+                           color = "cadetblue",alpha=1, curvature = 0.2,show.legend = FALSE))+
+    #draw_plot(Legend, x = 0.4, y = .8, width = .2, height = .1)+
+    draw_plot(p.trade.comm[[i]], x = .3, y = .0, width = .3, height = .75)+
+    draw_plot(p.yr.list[[i]]$imports, x = 0.01, y = 0, width = .375, height = 1)+
+    draw_plot(p.yr.list[[i]]$exports, x = .69, y = 0, width = .375, height = 1)
+}
+
+plot_grid(p.trade[[1]], p.trade[[2]], nrow=2,ncol = 1)
+ggsave(paste0(hndl.out,"Infographic_Map_trade flow.jpg"),width = 10,height = 6) 
 
 
-#Current year
-p1.imp=fn.barplt(d=dummy%>%filter(Commodity=='Finfish'),yr=2021,trade='import',
-                 Unit='Volume (1000s tonnes)',show.LGN=TRUE)
-legend <- g_legend(p1.imp)
-p1.imp=p1.imp+theme(legend.position = 'none')
-p2.imp=fn.barplt(d=dummy%>%filter(Commodity=='Crustaceans'),yr=2021,trade='import',Unit='Volume (1000s tonnes)')
-p3.imp=fn.barplt(d=dummy%>%filter(Commodity=='Molluscs'),yr=2021,trade='import',Unit='Volume (1000s tonnes)')
-p1.exp=fn.barplt(d=dummy%>%filter(Commodity=='Finfish'),yr=2021,trade='export',Unit='Volume (1000s tonnes)')
-p2.exp=fn.barplt(d=dummy%>%filter(Commodity=='Crustaceans'),yr=2021,trade='export',Unit='Volume (1000s tonnes)')
-p3.exp=fn.barplt(d=dummy%>%filter(Commodity=='Molluscs'),yr=2021,trade='export',Unit='Volume (1000s tonnes)')
-p.current=ggdraw() +
-  draw_plot(p_Map+
-              labs(title=2021)+theme(plot.title = element_text(hjust=0.5,vjust = 12.5,size=30))+
-              geom_curve(data=data.frame(x=112,y=c(-15,-30,-39),
-                                         x.end=130,y.end=c(-25,-26,-28)),
-                         aes(x = x, y = y, xend = x.end, yend = y.end),size = 1.5,
-                         arrow = arrow(length = unit(0.3, "cm"), type = "open"),
-                         color = "brown4", curvature = 0.2,show.legend = FALSE)+
-              geom_curve(data=data.frame(x=135,y=c(-25,-26,-28),
-                                         x.end=158,y.end=c(-15,-30,-38)),
-                         aes(x = x, y = y, xend = x.end, yend = y.end),size = 1.5,
-                         arrow = arrow(length = unit(0.3, "cm"), type = "open"),
-                         color = "brown4", curvature = 0.2,show.legend = FALSE))+
-  draw_plot(legend, x = 0.4, y = .8, width = .2, height = .1)+
-  draw_plot(p1.imp, x = 0, y = .6, width = .15, height = .3)+
-  draw_plot(p2.imp, x = 0, y = .3, width = .15, height = .3)+
-  draw_plot(p3.imp, x = 0, y = 0, width = .15, height = .3)+
-  draw_plot(p1.exp, x = .8, y = .6, width = .15, height = .3)+
-  draw_plot(p2.exp, x = .8, y = .3, width = .15, height = .3)+
-  draw_plot(p3.exp, x = .8, y = 0, width = .15, height = .3) 
 
 
 
-#2.2 Combine relevant plots
-plot_grid(Production_wild.caught.only$p,Exports_commodity$p,
-          p.original, p.current, nrow=2,ncol = 2, labels = c("A", "B","C","D"), rel_heights = c(.6, 1))
-  ggsave(paste0(hndl.out,"Infographic_Production.jpg"),width = 20,height = 10) 
+
+
+#Create plots by year for value
+do.this=FALSE
+if(do.this)
+{
+  YlaB='Value (M AUD)'
+  for(i in 1:length(p.yr.list))
+  {
+    dd=d1%>%
+      filter(Year==Yr.list[i] & TradeFlow=='Imports')%>%
+      rename(Var=Value_millions)
+    imp.flow=sum(dd$Var)
+    imports=fn.barplt(d=dd,show.LGN=FALSE,Y.lbl=YlaB,yMX=NULL,custom_colors=KLS.country,LBL.size=4)
+    
+    dd=d1%>%
+      filter(Year==Yr.list[i] & TradeFlow=='Exports')%>%
+      rename(Var=Value_millions)
+    exp.flow=sum(dd$Var)
+    exports=fn.barplt(d=dd,show.LGN=FALSE,Y.lbl='',yMX=NULL,custom_colors=KLS.country,LBL.size=4)
+    p.yr.list[[i]]=list(imports=imports,exports=exports,imp.flow=imp.flow,exp.flow=exp.flow)
+  }
+  p.trade.value=p.yr.list
+  MX.flow=max(c(with(p.yr.list[[1]],c(imp.flow,exp.flow)),with(p.yr.list[[2]],c(imp.flow,exp.flow))))
+  for(i in 1:length(p.yr.list))
+  {
+    Arrow.dat=data.frame(Trade=c('Imports','Exports'),
+                         x=c(112,135),
+                         y=c(-15,-25),
+                         x.end=c(130,154),
+                         y.end=c(-25,-15),
+                         Flow=with(p.yr.list[[i]],c(5*imp.flow/MX.flow,5*exp.flow/MX.flow)))
+    
+    p.trade.value[[i]]=ggdraw() +
+      draw_plot(p_Map+
+                  labs(title=names(p.yr.list)[i])+theme(plot.title = element_text(hjust=0.5,size=30))+
+                  geom_curve(data=Arrow.dat,
+                             aes(x = x, y = y, xend = x.end, yend = y.end),size = Arrow.dat$Flow,
+                             arrow = arrow(length = unit(0.8, "cm"), type = "open"),
+                             color = "cadetblue",alpha=.85, curvature = 0.2,show.legend = FALSE))+
+      #draw_plot(Legend, x = 0.4, y = .8, width = .2, height = .1)+
+      draw_plot(p.yr.list[[i]]$imports, x = 0, y = 0, width = .375, height = 1)+
+      draw_plot(p.yr.list[[i]]$exports, x = .7, y = 0, width = .375, height = 1)
+  }
+  
+  p.trade.comm.value=p.trade
+  for(i in 1:length(p.yr.list))
+  {
+    p.trade.comm.value[[i]]=fn.barplt2(dd=d1_commodity%>%
+                                           filter(Year==Yr.list[i])%>%
+                                           rename(Var=Value_millions)%>%
+                                           group_by(TradeFlow)%>%
+                                           arrange(TradeFlow,-Var)%>%
+                                           mutate(CumSum=cumsum(Var),
+                                                  Prop=CumSum/sum(Var),
+                                                  Commodity=ifelse(Prop<=0.9,Commodity,'Other'))%>%
+                                           ungroup()%>%
+                                           group_by(Commodity,TradeFlow)%>%
+                                           summarise(Var=sum(Var)),
+                                     Ylab=YlaB,
+                                     LGN.titl=NULL)
+    
+  }
+}
+
+
+  
   
   
   
