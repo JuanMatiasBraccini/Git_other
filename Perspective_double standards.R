@@ -279,7 +279,7 @@ fn.barplt=function(d,show.LGN=FALSE,Y.lbl='',axs.size=11,lg.size=14,yMX,custom_c
     ggplot(aes(x=1,y=.data[['Var']],fill=.data[['Country']]))+
     geom_bar(position="stack", stat="identity")+
     scale_fill_manual(drop = FALSE,values = custom_colors,breaks = levels(d$Country))+
-    theme_PA(axs.t.siz=axs.size,leg.siz=lg.size)+xlab('')+ylab(Y.lbl)+ylim(0,yMX)+
+    theme_PA(axs.T.siz=13,axs.t.siz=axs.size,leg.siz=lg.size)+xlab('')+ylab(Y.lbl)+ylim(0,yMX)+
     theme(axis.ticks.x = element_blank(),
           axis.text.x=element_blank(),
           legend.position = 'top',
@@ -1268,7 +1268,8 @@ if(do.production.info)
       rename(Var=Quantity_tonnes)%>%
       mutate(Var=Var/1000)  #1000s of tonnes
     imp.flow=sum(dd$Var)
-    imports=fn.barplt(d=dd%>%mutate(Var=Var/sum(Var,na.rm=T)),show.LGN=FALSE,Y.lbl='Proportion of imports',yMX=NULL,custom_colors=KLS.country,LBL.size=3)
+    imports=fn.barplt(d=dd%>%mutate(Var=Var/sum(Var,na.rm=T)),show.LGN=FALSE,
+                      Y.lbl='Proportion of imports',yMX=NULL,custom_colors=KLS.country,LBL.size=3)
     
     dd=d1%>%
       filter(Year==Yr.list[i] & TradeFlow=='Exports')%>%
@@ -1305,7 +1306,7 @@ if(do.production.info)
   MX.flow=max(c(with(p.yr.list[[1]],c(imp.flow,exp.flow)),with(p.yr.list[[2]],c(imp.flow,exp.flow))))
   for(i in 1:length(p.yr.list))
   {
-    Arrow.dat=data.frame(Trade=c('Imports','Exports'),
+    Arrow.dat=data.frame(Trade=c('1.Imports','2.Exports'),
                          x=c(98,150),
                          y=c(-18,-25),
                          x.end=c(115,160),
@@ -1313,14 +1314,14 @@ if(do.production.info)
                          Flow=with(p.yr.list[[i]],c(5*imp.flow/MX.flow,5*exp.flow/MX.flow)))
     
     p.trade[[i]]=ggdraw() +
-      draw_plot(p_Map+
-                  labs(title=names(p.yr.list)[i])+theme(plot.title = element_text(hjust=0.5,size=30))+
-                  geom_curve(data=Arrow.dat,
-                             aes(x = x, y = y, xend = x.end, yend = y.end),size = Arrow.dat$Flow,
-                             arrow = arrow(length = unit(0.8, "cm"), type = "open"),
-                             color = "cadetblue",alpha=1, curvature = 0.2,show.legend = FALSE))+
-      draw_plot(p.yr.list[[i]]$imports, x = 0.01, y = 0, width = .375, height = 1)+
-      draw_plot(p.yr.list[[i]]$exports, x = .65, y = 0, width = .35, height = 1)
+                  draw_plot(p_Map+
+                              labs(title=names(p.yr.list)[i])+theme(plot.title = element_text(hjust=0.5,size=30))+
+                              geom_curve(data=Arrow.dat,
+                                         aes(x = x, y = y, xend = x.end, yend = y.end,color = Trade),size = Arrow.dat$Flow,
+                                         arrow = arrow(length = unit(0.8, "cm"), type = "open"),
+                                         alpha=1, curvature = 0.2,show.legend = FALSE))+
+                  draw_plot(p.yr.list[[i]]$imports, x = 0.01, y = 0, width = .375, height = 1)+
+                  draw_plot(p.yr.list[[i]]$exports, x = .65, y = 0, width = .35, height = 1)
     #draw_plot(Legend, x = 0.4, y = .8, width = .2, height = .1)+
     #draw_plot(p.trade.comm[[i]], x = .3, y = .0, width = .3, height = .75)+
     
@@ -1329,6 +1330,7 @@ if(do.production.info)
   #Annual Proportion of imports by index
   p_ann.imp.indices=d1%>%
     filter(TradeFlow=='Imports')%>%
+    filter(Year>=Yr.list[1] & Year<=Yr.list[2])%>%
     left_join(Performance.indices%>%
                 filter(Country%in%unique(d1$Country))%>%
                 dplyr::select(Country,Risk,Color),by='Country')%>%
@@ -1340,7 +1342,7 @@ if(do.production.info)
     ggplot(aes(x=Year,y=Var,fill=Risk))+
     geom_bar(position="fill", stat="identity")+
     scale_fill_manual(drop = FALSE,values = c(RiskColors$Color,Kol.Risk.Other),breaks = c(RiskColors$Risk,"Other"))+
-    theme_PA(axs.t.siz=10,leg.siz=10)+ylab('Proportion of imports')+
+    theme_PA(axs.T.siz=13,axs.t.siz=10,leg.siz=10)+ylab('Proportion of imports')+
     theme(legend.position = 'bottom',
           legend.title = element_blank(),
           axis.title.x=element_blank(),
@@ -1348,13 +1350,34 @@ if(do.production.info)
           plot.background = element_rect(fill = "transparent", colour = NA))+
     guides(fill = guide_legend(nrow = 1, byrow = TRUE))+
     labs(caption='Commodities for human consumption only')
-  
+  add.import.volume=TRUE
+  if(add.import.volume)
+  {
+    DD=d1%>%
+      filter(TradeFlow=='Imports')%>%
+      filter(Year>=Yr.list[1] & Year<=Yr.list[2])%>%
+      mutate(Quantity_tonnes=Quantity_tonnes/1000)%>%
+      group_by(Year)%>%
+      summarise(Var=sum(Quantity_tonnes,na.rm=T))%>%
+      ungroup()
+    COEF=max(DD$Var)
+    DD=DD%>%
+      mutate(Var=Var/COEF,
+             Risk='Other')
+    Kl.sec.y='brown4'
+    p_ann.imp.indices=p_ann.imp.indices+
+      geom_line(data=DD,aes(Year,Var),color=Kl.sec.y,linewidth=2)+
+      scale_y_continuous(name = "Proportion of imports",sec.axis = sec_axis(~ . * COEF,name = "Imports (1000s Tonnes)"))+
+      theme(axis.title.y.right = element_text(color = Kl.sec.y), 
+            axis.text.y.right = element_text(color = Kl.sec.y))
+    
+  }
   
   
   #Create infographic
   plot_grid(p.trade[[2]], 
-            plot_grid(p_ann.imp.indices,p.trade.comm[[2]],rel_widths = c(1.4, 1)),
-            nrow=2,ncol=1)
+            plot_grid(p_ann.imp.indices,p.trade.comm[[2]],rel_widths = c(1.4, 1),labels=c('B','C')),
+            nrow=2,ncol=1,labels=c('A','B','C'))
   ggsave(paste0(hndl.out,"Infographic_Map_trade flow.jpg"),width = 10,height = 6) 
   
 }
@@ -1499,7 +1522,7 @@ if(do.shark.production.info)
                                             axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))+
                                       labs(title=Tot.exps)
   
-  Arrow.dat=data.frame(Trade=c('Imports','Exports'),
+  Arrow.dat=data.frame(Trade=c('1.Imports','2.Exports'),
                        x=c(98,150),
                        y=c(-18,-25),
                        x.end=c(115,160),
@@ -1510,9 +1533,9 @@ if(do.shark.production.info)
     draw_plot(p_Map+
                 labs(title=names(p.yr.list.shark[1]))+theme(plot.title = element_text(hjust=0.5,size=30))+
                 geom_curve(data=Arrow.dat,
-                           aes(x = x, y = y, xend = x.end, yend = y.end),size = Arrow.dat$Flow,
+                           aes(x = x, y = y, xend = x.end, yend = y.end,color = Trade),size = Arrow.dat$Flow,
                            arrow = arrow(length = unit(0.8, "cm"), type = "open"),
-                           color = "cadetblue",alpha=1, curvature = 0.2,show.legend = FALSE))+
+                           alpha=1, curvature = 0.2,show.legend = FALSE))+
     draw_plot(p.yr.list.shark[[1]]$imports, x = 0.01, y = 0, width = .375, height = 1)+
     draw_plot(p.yr.list.shark[[1]]$exports, x = .65, y = 0, width = .35, height = 1)
   
@@ -1575,10 +1598,11 @@ if(do.shark.production.info)
   
 }
   
-# Infographic - Exporting management --------------------------------------------------------------------
+# Infographic - Legislation & regulations----------------------------------------------------------------
 do.regulations.info=FALSE
 if(do.regulations.info)
 {
+  #1. Key Data Elements
   Key.data.elements=read_excel(paste0(handl_OneDrive("Scientific manuscripts/Perspective_Double standards/1. Data sets/"),
                                         'Key Data Elements.xlsx'), sheet = "Sheet1",skip = 0)
   
@@ -1598,7 +1622,7 @@ if(do.regulations.info)
   Key.dat.el.used=Key.dat.el.used%>%
     mutate(KDE.short=factor(KDE.short,levels=KDE.short.lvls))
   
-  
+  #Plot
   KDE.cols=RiskColors%>%
             filter(Risk%in%c('Negligible','Medium','Severe'))%>%
     mutate(Value=case_when(Risk=='Negligible'~'Yes',
@@ -1616,21 +1640,64 @@ if(do.regulations.info)
             facet_wrap(~Type)+
             scale_fill_manual(values=KLS1)+
             theme_PA(axs.t.siz=12)+
-            theme(legend.position = 'bottom',
+            theme(legend.position = 'top',
                   legend.title = element_blank(),
                   axis.title.y=element_blank(),
                   axis.title.x=element_blank(),
                   axis.text.x=element_blank(),
-                  axis.ticks.x=element_blank())+
-            labs(title='Key data elements')
+                  axis.ticks.x=element_blank())
+            
   
   
   #ACA
-  p_sp.squiz
+  #2. MSC
+  MSC=read_excel(paste0(handl_OneDrive("Scientific manuscripts/Perspective_Double standards/1. Data sets/"),
+                                      'Australian MSC certified stocks.xlsx'), sheet = "Sheet1",skip = 0)
+  
+  Prop.current.certified.catch=data.frame(Type=c('Volume','Value'), #dummy, MISSING
+                                          Certified=c(0.35,0.52))%>%
+                                mutate(Not.certified=1-Certified)%>%
+                                gather(MSC,Prop,-Type)%>%
+                                mutate(MSC=case_when(MSC=='Not.certified'~'Not certified',
+                                                     TRUE~MSC))
+  #Data manipulations
+  MSC.cum=MSC%>%
+          mutate(n=1)%>%
+          group_by(Year)%>%
+          summarise(n=sum(n))%>%
+          ungroup()%>%
+          mutate(CumN=cumsum(n))
+  
+  #Plot
+  p.MSC=MSC.cum%>%
+          ggplot(aes(Year,CumN))+
+          geom_point(color='brown4',size=5)+geom_line(color='brown4',linetype='dotted')+
+          theme_PA(axs.T.siz=9)+
+          ylab('Cummulative # MSC-certified stocks')
+  p.MSC.inset=Prop.current.certified.catch%>%
+                ggplot(aes(Type,Prop,fill=MSC))+
+                geom_bar(stat='identity',position="stack")+
+                theme_PA(leg.siz=9)+coord_flip()+
+                theme(legend.margin=margin(-10, 0, 0, 0),
+                      legend.position = 'bottom',
+                      legend.title = element_blank(),
+                      axis.title = element_blank())+
+            scale_fill_manual(values=c('Not certified'="grey70",Certified="steelblue"))
+  
+  p.MSC=ggdraw() +
+          draw_plot(p.MSC)+
+          draw_plot(p.MSC.inset, x = 0.08, y = 0.45, width = .6, height = .5)
+        
+  #3. Australian legislation. Case study WA Sharks
+  p_Oz.leg=p_KDE 
+  
+  #4. Spatial squeeze. WA
+  p_sp.squiz=p_KDE
   
   #Combine plots
-  plot_grid(p_KDE,p_sp.squiz = c(1.4, 1),nrow=2,ncol=1)
-  ggsave(paste0(hndl.out,"Infographic_Exporting management.jpg"),width = 6,height = 8) 
+  plot_grid(p_KDE,p.MSC,p_Oz.leg,p_sp.squiz,
+            rel_heights = c(1, 1),rel_widths = c(1, 1),nrow=2,ncol=2,labels=c('A','B','C','D'))
+  ggsave(paste0(hndl.out,"Infographic_Exporting management.jpg"),width = 10,height = 6) 
   
-  
+
 }
