@@ -8,6 +8,7 @@ library(rnaturalearth)
 library(ggrepel)
 library(scales)
 library(forcats)
+library(sf)
 
 if(!exists('handl_OneDrive')) source('C:/Users/myb/OneDrive - Department of Primary Industries and Regional Development/Matias/Analyses/SOURCE_SCRIPTS/Git_other/handl_OneDrive.R')
 hndl.out=handl_OneDrive("Scientific manuscripts/Perspective_Double standards/6. Outputs/")
@@ -1649,54 +1650,230 @@ if(do.regulations.info)
             
   
   
-  #ACA
+  
   #2. MSC
-  MSC=read_excel(paste0(handl_OneDrive("Scientific manuscripts/Perspective_Double standards/1. Data sets/"),
-                                      'Australian MSC certified stocks.xlsx'), sheet = "Sheet1",skip = 0)
+  # MSC=read_excel(paste0(handl_OneDrive("Scientific manuscripts/Perspective_Double standards/1. Data sets/"),
+  #                                     'Australian MSC certified stocks.xlsx'), sheet = "Sheet1",skip = 0)
+  # MSC.cum=MSC%>%
+  #   mutate(n=1)%>%
+  #   group_by(Year)%>%
+  #   summarise(n=sum(n))%>%
+  #   ungroup()%>%
+  #   mutate(CumN=cumsum(n))
+  # p.MSC=MSC.cum%>%
+  #   ggplot(aes(Year,CumN))+
+  #   geom_point(color='brown4',size=5)+geom_line(color='brown4',linetype='dotted')+
+  #   theme_PA(axs.T.siz=9)+
+  #   ylab('Cummulative # MSC-certified stocks')
   
-  Prop.current.certified.catch=data.frame(Type=c('Volume','Value'), #dummy, MISSING
-                                          Certified=c(0.35,0.52))%>%
-                                mutate(Not.certified=1-Certified)%>%
+  
+  #comment provided by Matt Watson MSC Australia
+  #MSC engaged=certified + full assessment + improvement program fisheries
+  MSC.species=39
+  MSC.fisheries=30
+  MSC.volume='54,000 tonnes'
+  MSC.value= '870 million AUD'
+  Prop.current.certified.catch=data.frame(Type=c('Volume','Value'), #dummy, MISSING   
+                                          MSC.engaged=c(0.37,0.63))%>%  
+                                mutate(Not.MSC.engaged=1-MSC.engaged)%>%
                                 gather(MSC,Prop,-Type)%>%
-                                mutate(MSC=case_when(MSC=='Not.certified'~'Not certified',
-                                                     TRUE~MSC))
-  #Data manipulations
-  MSC.cum=MSC%>%
-          mutate(n=1)%>%
-          group_by(Year)%>%
-          summarise(n=sum(n))%>%
-          ungroup()%>%
-          mutate(CumN=cumsum(n))
+                                mutate(MSC=case_when(MSC=='MSC.engaged'~paste0('MSC engaged (',MSC.species, ' species, ',MSC.fisheries,' fisheries)'),
+                                                     MSC=='Not.MSC.engaged'~'Not MSC engaged'))
+
+   MSC.kls=c('grey70','steelblue2')
+  names(MSC.kls)=c('Not MSC engaged',paste0('MSC engaged (',MSC.species, ' species, ',MSC.fisheries,' fisheries)'))
+  p.MSC=Prop.current.certified.catch%>%
+    ggplot(aes(Type,Prop,fill=MSC))+
+    geom_bar(stat='identity',position="stack")+
+    theme_PA(leg.siz=6,axs.t.siz=8)+
+    theme(legend.key.size = unit(.5,"line"),
+          legend.margin=margin(-10, 0, 0, 0),
+          legend.position = 'bottom',
+          legend.title = element_blank(),
+          axis.title = element_blank(),
+          axis.text.y = element_text(angle = 90, hjust=0.5))+
+    scale_fill_manual(values=MSC.kls)+
+    geom_text(x=1,y=0.7,label=MSC.value,size=3)+
+    geom_text(x=2,y=0.8,label=MSC.volume,size=3)+
+    coord_flip()
   
-  #Plot
-  p.MSC=MSC.cum%>%
-          ggplot(aes(Year,CumN))+
-          geom_point(color='brown4',size=5)+geom_line(color='brown4',linetype='dotted')+
-          theme_PA(axs.T.siz=9)+
-          ylab('Cummulative # MSC-certified stocks')
-  p.MSC.inset=Prop.current.certified.catch%>%
-                ggplot(aes(Type,Prop,fill=MSC))+
-                geom_bar(stat='identity',position="stack")+
-                theme_PA(leg.siz=9)+coord_flip()+
-                theme(legend.margin=margin(-10, 0, 0, 0),
-                      legend.position = 'bottom',
-                      legend.title = element_blank(),
-                      axis.title = element_blank())+
-            scale_fill_manual(values=c('Not certified'="grey70",Certified="steelblue"))
+
+  #SAFS
+  #source: https://www.fish.gov.au/reports/key-results
+  SAFS.2024=data.frame(Species=155,
+                       Stocks=503,
+                       Sustainable=316,
+                       Depleting=13,
+                       Recovering=16,
+                       Depleted=45,
+                       Negligible=39,
+                       Undefined=74)%>%
+    gather(Status,Number.stocks.per.status,-c(Species,Stocks))%>%
+    mutate(Prop=Number.stocks.per.status/Stocks,
+           Status=factor(Status,levels=c("Undefined","Negligible","Sustainable",
+                                         "Depleting","Recovering","Depleted")),
+           Color=case_when(Status=='Negligible'~RiskColors%>%filter(Risk=='Negligible')%>%pull(Color),
+                           Status=='Sustainable'~RiskColors%>%filter(Risk=='Low')%>%pull(Color),
+                           Status=='Depleting'~RiskColors%>%filter(Risk=='Medium')%>%pull(Color),
+                           Status=='Recovering'~RiskColors%>%filter(Risk=='High')%>%pull(Color),
+                           Status=='Depleted'~RiskColors%>%filter(Risk=='Severe')%>%pull(Color),
+                           Status=='Undefined'~'grey70'))
   
-  p.MSC=ggdraw() +
-          draw_plot(p.MSC)+
-          draw_plot(p.MSC.inset, x = 0.08, y = 0.45, width = .6, height = .5)
-        
-  #3. Australian legislation. Case study WA Sharks
+  SAFS.kls=SAFS.2024$Color
+  names(SAFS.kls)=SAFS.2024$Status
+  
+  p_SAFS=SAFS.2024%>%
+    ggplot(aes(x=1,y=Prop,fill=Status))+
+    geom_bar(position = 'stack',stat='identity')+
+    theme_PA(leg.siz=7,axs.t.siz=8)+
+    scale_fill_manual(values=SAFS.kls)+
+    theme(legend.key.size = unit(.5,"line"),
+          legend.position='bottom',
+          legend.title = element_blank(),
+          legend.box.spacing = margin(0.65),
+          axis.title.x=element_blank(),
+          axis.title.y=element_blank(),
+          axis.text.y=element_blank(),
+          axis.ticks.y=element_blank())+ 
+    guides(fill = guide_legend(nrow = 2, byrow = TRUE))+
+    labs(caption=paste0(unique(SAFS.2024$Species), ' assessed species (',
+                        unique(SAFS.2024$Stocks),' stocks)'))+
+    theme(plot.caption = element_text(hjust = 0.25))+
+    coord_flip()
+  
+  #Combined MSC and SAFS
+  p_status=plot_grid(p.MSC+labs(subtitle='MSC'),
+                     p_SAFS+labs(subtitle='SAFS'),
+                      nrow=2,ncol=1)  #,rel_widths = c(1, 1.25)
+            
+  
+  
+  #3. Australian legislation. Case study WA Sharks  #ACA
   p_Oz.leg=p_KDE 
   
   #4. Spatial squeeze. WA
-  p_sp.squiz=p_KDE
+  #4.1 global MPAs  https://map.navigatormap.org/
+  Global.MPAs=read.csv(paste0(handl_OneDrive("Scientific manuscripts/Perspective_Double standards/1. Data sets/"),
+                              'map.navigatormap_org.csv'))
+  Global.MPAs=Global.MPAs%>%
+    mutate(MPA.coverage.WDPA=case_when(Country=='Australia'~52,      #as per https://www.dcceew.gov.au/environment/land/achieving-30-by-30#:~:text=Australia%20has%20one%20of%20the,'no%2Dtake'%20areas.
+                                       TRUE~MPA.coverage.WDPA),
+           MPA.coverage.heavily.or.most.restricted=case_when(Country=='Australia'~24,      
+                                                             TRUE~MPA.coverage.heavily.or.most.restricted),
+           MPA.surface=Marine.area*(MPA.coverage.WDPA/100),
+           OZ=ifelse(Country=='Australia','Australia','Other'))
   
+  Oz.MPAs=Global.MPAs%>%filter(Country=='Australia')
+  OZ.label=paste0('Australia:',
+                  '\nMPA network= 4.6 M (',Oz.MPAs$MPA.coverage.WDPA,
+                  '% total marine area)\n No take= 2.2 M (',
+                  Oz.MPAs$MPA.coverage.heavily.or.most.restricted,'% total marine area)')
+  
+  p.MPA.global=Global.MPAs%>%
+    ggplot(aes(MPA.surface,fill=OZ))+
+    geom_histogram(bins=50,show.legend = FALSE)+
+    theme_PA()+
+    labs(x = expression(paste("Total surface of MPA network by country (", km^2,')')))+
+    ylab('Frequency')+
+    scale_x_continuous(labels = scales::comma)+
+    scale_fill_manual(values = c(Australia='brown',Other='grey60'))+
+    geom_text_repel(data=Oz.MPAs,aes(x=MPA.surface),y=0,label=OZ.label,
+                    nudge_y = 10,
+                    force = 2,
+                    box.padding = 2,
+                    color='brown',size=4)
+  
+  #4.2 WA sharks closures and MPAs 
+  Map.hndl=handl_OneDrive("Data/Mapping/")
+  Bathymetry_120=read.table(paste0(Map.hndl,"get_data112_120.cgi"))
+  Bathymetry_138=read.table(paste0(Map.hndl,"get_data120.05_138.cgi")) 
+  Bathymetry=rbind(Bathymetry_120,Bathymetry_138)
+  
+  
+  world <- ne_countries(scale = "medium", returnclass = "sf")
+  fn.map=function(Limx, Limy, Depth.data,add.depth,SEQ,add.parks,NRW.leg,
+                  FishClose.col,ASL.col,Comm.col,State.col,alpha.parks,
+                  LeG.Siz,Axs.t,Axs.T)
+  {
+    p=ggplot(data = world) +
+      geom_sf(color = "black", fill = "grey60",alpha=0.4) +
+      xlab("") + ylab("")+
+      scale_x_continuous(breaks=seq(round(Limx)[1],round(Limx)[2],SEQ))+
+      scale_y_continuous(breaks=seq(round(Limy)[1],round(Limy)[2],SEQ))+
+      ylab('Latitude')+xlab('Longitude')+
+      theme_PA(leg.siz=LeG.Siz,axs.t.siz=Axs.t,axs.T.siz=Axs.T)+
+      theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1))
+    if(add.depth)
+    {
+      p=p+
+        geom_contour(data = Depth.data%>%filter(V1>=Limx[1] & V1<=Limx[2] & V2>=Limy[1] & V2<=Limy[2]), 
+                     aes(x=V1, y=V2, z=V3),
+                     breaks=c(-50,-100,-200,-500),linetype="solid",colour="grey70")
+    }
+    
+    if(add.parks)
+    {
+      p=p+
+        geom_sf(data = Shark_Fishery_Closures,fill=FishClose.col,alpha=alpha.parks)+
+        geom_sf(data = ASL_Closures,fill=ASL.col,alpha=alpha.parks)+
+        geom_sf(data = ASL_Closures2,fill=ASL.col,alpha=alpha.parks)+
+        geom_sf(data = Park_WA_Commonwealth_Marine_Parks,fill=Comm.col,alpha=alpha.parks)+
+        geom_sf(data = Park_DBCA_SCMP,fill=State.col,alpha=alpha.parks)+
+        geom_sf(data = Park_Eighty.Mile,fill=State.col,alpha=alpha.parks)+
+        geom_sf(data = Park_Horizontal.Falls.and.North.Lalang,fill=State.col,alpha=alpha.parks)+
+        geom_sf(data = Park_Lalang.Garram.Camden.Sound,fill=State.col,alpha=alpha.parks)+
+        geom_sf(data = Park_Northern.Kimberley,fill=State.col,alpha=alpha.parks)+
+        geom_sf(data = Park_Yawuru.Roebuck,fill=State.col,alpha=alpha.parks)+
+        coord_sf(xlim =Limx , ylim = Limy, expand = T)
+      leg.dat=data.frame(x=seq(Limx[2]*.9,Limx[2],length.out=4),
+                         y=seq(Limy[2]*.9,Limy[2],length.out=4),
+                         Name=c('Fishery closure','ASL closure','Commonwealth park','State park'))
+      leg.col=c(FishClose.col,ASL.col,Comm.col,State.col)
+      names(leg.col)=c('Fishery closure','ASL closure','Commonwealth park','State park')
+      p=p+
+        geom_point(data=leg.dat,aes(x=x,y=y,color=Name))+
+        theme(legend.title = element_blank(),
+              legend.position = 'bottom')+
+        scale_color_manual(values=leg.col)+
+        guides(color = guide_legend(nrow=NRW.leg,byrow=TRUE,
+                                    override.aes = list(alpha = alpha.parks,size = 1)))
+      
+      
+    }
+    p=p+coord_sf(xlim =Limx , ylim = Limy, expand = T)
+    return(p)
+  }
+  #Get Parks and closures 
+  Shark_Fishery_Closures=st_read(paste0(Map.hndl,"Closures/Shark_Fishery_Closures/Shark_Fishery_Closures.shp"))
+  #ASL_Closures=readOGR(paste0(Map.hndl,"Closures/ASL_closures/ASL_Closures.shp"), layer="ASL_Closures")
+  ASL_Closures = st_read(paste0(Map.hndl,"Closures/ASL_closures/ASL_Closures.shp"))
+  ASL_Closures2 = st_read(paste0(Map.hndl,"Closures/ASL_closures/Prohibition_on_Fishing_WCDGDLIMF_Order_2018_DPIRD_088.shp"))
+  #Australian.marine.parks=st_read(paste0(Map.hndl,"Australian marine parks/Australian marine parks.shp"))
+  Park_DBCA_SCMP=st_read(paste0(Map.hndl,"park boundaries/DBCA_SCMP/pmcr-scmp-sanctuary-hwm-proposed-sco-20240111.shp"))
+  Park_Eighty.Mile=st_read(paste0(Map.hndl,"park boundaries/Eighty Mile/pmcr-embmp-zoning-hwm_kim_20140404.shp"))
+  Park_Horizontal.Falls.and.North.Lalang=st_read(paste0(Map.hndl,"park boundaries/Horizontal Falls and North Lalang/pmcr-lhfmp+nlmp-zoning-hwm_kim_20161014.shp"))
+  Park_Lalang.Garram.Camden.Sound=st_read(paste0(Map.hndl,"park boundaries/Lalang-Garram Camden Sound/pmcr-csmp-zoning-hwm_kim_20130626.shp"))
+  Park_Northern.Kimberley=st_read(paste0(Map.hndl,"park boundaries/Northern Kimberley/pmcr-nkmp-zoning-hwm_kim_20160913.shp"))
+  Park_Northwest.AMP.Network=st_read(paste0(Map.hndl,"park boundaries/Northwest AMP Network/NorthWestAMPNetwork.shp"))
+  Park_WA_Commonwealth_Marine_Parks=st_read(paste0(Map.hndl,"park boundaries/WA_Commonwealth_Marine_Parks/WA_Commonwealth_Marine_Parks.shp"))
+  Park_Yawuru.Roebuck=st_read(paste0(Map.hndl,"park boundaries/Yawuru Roebuck/pmcr-rbmp-zoning-hwm_kim_20160830.shp"))
+  
+  #plot map with bathymetry and marine parks
+  p_sp.squiz=fn.map(Limx=c(112,130), Limy=c(-36,-13), 
+                    Depth.data=Bathymetry,add.depth=FALSE,SEQ=3,
+                    add.parks=TRUE,NRW.leg=2,
+                    FishClose.col='cyan2',ASL.col='cadetblue4',
+                    Comm.col='chartreuse4',State.col='brown',  #aquamarine3
+                    alpha.parks=.5,
+                    LeG.Siz=8,Axs.t=8,Axs.T=11)+
+                  theme(legend.margin=margin(0,0,0,0),
+                        legend.box.margin=margin(-10,-10,-10,-10))
+                
   #Combine plots
-  plot_grid(p_KDE,p.MSC,p_Oz.leg,p_sp.squiz,
-            rel_heights = c(1, 1),rel_widths = c(1, 1),nrow=2,ncol=2,labels=c('A','B','C','D'))
+  plot_grid(plot_grid(p_KDE,p.MPA.global,ncol=2,labels=c('A','B')),
+            plot_grid(p_status,p_Oz.leg,p_sp.squiz,ncol=3,nrow=1,
+                      rel_widths = c(1,1,1.25),labels=c('C','D','E')),
+            rel_heights = c(1, 1),nrow=2,ncol=1)
   ggsave(paste0(hndl.out,"Infographic_Exporting management.jpg"),width = 10,height = 6) 
   
 
