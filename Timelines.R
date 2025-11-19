@@ -750,3 +750,71 @@ if(do.this)
   ggsave(paste0(hndl.out,"Recreational sector.jpg"),width = 8,height = 6)
   
 }
+# Map - figure 1 ---------------------------------------------------------
+do.this=FALSE  #ACA
+if(do.this)
+{
+  library(ggspatial)
+  world <- ne_countries(scale = "medium", returnclass = "sf")
+  Map.hndl=handl_OneDrive("Data/Mapping/")
+  Bathymetry_120=read.table(paste0(Map.hndl,"get_data112_120.cgi"))
+  Bathymetry_138=read.table(paste0(Map.hndl,"get_data120.05_138.cgi")) 
+  Bathymetry=rbind(Bathymetry_120,Bathymetry_138)
+  Bioregions=st_read(paste0(Map.hndl,"Bioregions/Bioregions.shp"))
+  NC=Bioregions%>%filter(BIOREGION=="North Coast")
+  GC=Bioregions%>%filter(BIOREGION=="Gascoyne Coast")
+  WC=Bioregions%>%filter(BIOREGION=="West Coast")
+  SC=Bioregions%>%filter(BIOREGION=="South Coast")
+  
+  Kl.bio.reg='steelblue3'
+  Sz.bio.reg=6
+  Sz.town=4
+  pt.siz=2
+  Limx=c(109,129)
+  Limy=c(-39,-11)
+  
+  p=ggplot(data = world) +
+    geom_sf(color = "black", fill = "darkgoldenrod3",alpha=0.75) +
+    xlab("") + ylab("")+
+    scale_x_continuous(expand=c(0,0),breaks=seq(round(Limx)[1],round(Limx)[2],2))+
+    scale_y_continuous(expand=c(0,0),breaks=seq(round(Limy)[1],round(Limy)[2],2))+
+    ylab('Latitude')+xlab('Longitude')+
+    theme_PA(axs.t.siz=12,axs.T.siz=20)+
+    theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1))+
+    geom_sf(data = NC,fill='grey40',alpha=.3)+
+    geom_text(x=118.5,y=-15,label='North',color=Kl.bio.reg,size=Sz.bio.reg,fontface = "bold")+
+    geom_text(x=118.5,y=-16,label='coast',color=Kl.bio.reg,size=Sz.bio.reg,fontface = "bold")+
+    geom_sf(data = GC,fill='grey60',alpha=.3)+
+    geom_text(x=112,y=-20,label='Gascoyne',color=Kl.bio.reg,size=Sz.bio.reg,fontface = "bold")+
+    geom_text(x=112,y=-21,label='coast',color=Kl.bio.reg,size=Sz.bio.reg,fontface = "bold")+
+    geom_sf(data = WC,fill='grey80',alpha=.3)+
+    geom_text(x=113,y=-31,label='West',color=Kl.bio.reg,size=Sz.bio.reg,fontface = "bold")+
+    geom_text(x=113,y=-32,label='coast',color=Kl.bio.reg,size=Sz.bio.reg,fontface = "bold")+
+    geom_sf(data = SC,fill='grey95',alpha=.3)+
+    geom_text(x=124,y=-35.5,label='South',color=Kl.bio.reg,size=Sz.bio.reg,fontface = "bold")+
+    geom_text(x=124,y=-36.5,label='coast',color=Kl.bio.reg,size=Sz.bio.reg,fontface = "bold")+
+    coord_sf(xlim =Limx , ylim = Limy, expand = T)+
+    geom_point(x=122.237,y=-17.9618,size=pt.siz)+
+    geom_text(x=122.237+.26,y=-17.9618,label='Broome',size=Sz.town, hjust = 0)+
+    geom_point(x=118.609,y=-20.31,size=pt.siz)+
+    geom_text(x=118.609+.26,y=-20.31,label='Port Hedland',size=Sz.town, hjust = 0)+
+    geom_point(x=114.61,y=-28.77,size=pt.siz)+
+    geom_text(x=114.61+.26,y=-28.77,label='Geraldton',size=Sz.town, hjust = 0)+
+    geom_point(x=115.86,y=-31.95,size=pt.siz)+
+    geom_text(x=115.86+.26,y=-31.95,label='Perth',size=Sz.town, hjust = 0)+
+    geom_point(x=115.64,y=-33.327,size=pt.siz)+
+    geom_text(x=115.64+.26,y=-33.327,label='Bunbury',size=Sz.town, hjust = 0)+
+    geom_point(x=117.88,y=-35.026,size=pt.siz)+
+    geom_text(x=117.88,y=-35.026+.25,label='Albany',size=Sz.town, hjust = 0,vjust=0,angle=25)+
+    geom_point(x=121.89,y=-33.86,size=pt.siz)+
+    geom_text(x=121.89,y=-33.86+.25,label='Esperance',size=Sz.town, hjust = 0,vjust=0,angle=25)
+  
+  print(p)
+  ggsave(paste0(hndl.out,"Map.jpg"),width = ,height = 8)
+  
+  print(p+
+          geom_contour(data = Bathymetry%>%filter(V1>=Limx[1] & V1<=Limx[2] & V2>=Limy[1] & V2<=Limy[2]), 
+                       aes(x=V1, y=V2, z=V3),
+                       breaks=c(-50,-100,-200,-500),linetype="solid",colour="grey45"))
+  ggsave(paste0(hndl.out,"Map_with bathymetry.jpg"),width = ,height = 8)
+}
