@@ -1652,29 +1652,14 @@ if(do.regulations.info)
   
   
   #2. MSC
-  # MSC=read_excel(paste0(handl_OneDrive("Scientific manuscripts/Perspective_Double standards/1. Data sets/"),
-  #                                     'Australian MSC certified stocks.xlsx'), sheet = "Sheet1",skip = 0)
-  # MSC.cum=MSC%>%
-  #   mutate(n=1)%>%
-  #   group_by(Year)%>%
-  #   summarise(n=sum(n))%>%
-  #   ungroup()%>%
-  #   mutate(CumN=cumsum(n))
-  # p.MSC=MSC.cum%>%
-  #   ggplot(aes(Year,CumN))+
-  #   geom_point(color='brown4',size=5)+geom_line(color='brown4',linetype='dotted')+
-  #   theme_PA(axs.T.siz=9)+
-  #   ylab('Cummulative # MSC-certified stocks')
-  
-  
-  #comment provided by Matt Watson MSC Australia
+  #comment provided by Matt Watson MSC Australia (he amended 37% from fact sheet to 39%)
   #MSC engaged=certified + full assessment + improvement program fisheries
   MSC.species=39
   MSC.fisheries=30
   MSC.volume='54,000 tonnes'
   MSC.value= '870 million AUD'
-  Prop.current.certified.catch=data.frame(Type=c('Volume','Value'), #dummy, MISSING   
-                                          MSC.engaged=c(0.37,0.63))%>%  
+  Prop.current.certified.catch=data.frame(Type=c('Volume','Value'),  
+                                          MSC.engaged=c(0.39,0.63))%>%  
                                 mutate(Not.MSC.engaged=1-MSC.engaged)%>%
                                 gather(MSC,Prop,-Type)%>%
                                 mutate(MSC=case_when(MSC=='MSC.engaged'~paste0('MSC engaged (',MSC.species, ' species, ',MSC.fisheries,' fisheries)'),
@@ -1744,12 +1729,51 @@ if(do.regulations.info)
   #Combined MSC and SAFS
   p_status=plot_grid(p.MSC+labs(subtitle='MSC'),
                      p_SAFS+labs(subtitle='SAFS'),
-                      nrow=2,ncol=1)  #,rel_widths = c(1, 1.25)
+                      nrow=2,ncol=1)  
             
   
   
-  #3. Australian legislation. Case study WA Sharks  #ACA
-  p_Oz.leg=p_KDE 
+  #3. Australian legislation. Case study WA Sharks  
+  Shark.legislation.timeline=read_excel(paste0(handl_OneDrive("Scientific manuscripts/Perspective_Double standards/1. Data sets/"),
+                                      'Shark legislation timeline.xlsx'), sheet = "description",skip = 0)
+  Shk.leg=Shark.legislation.timeline%>%
+    rename(New.conditions='New conditions')%>%
+    mutate(Cum.conditions=cumsum(New.conditions))%>%
+    dplyr::select(Date,Cum.conditions,Intensity)%>%
+    mutate(Intensity=factor(Intensity,levels=unique(Shark.legislation.timeline$Intensity)))
+  
+  colfunc1=colorRampPalette(c('slategray1','steelblue2','royalblue4'))
+  Shk.leg.cols=colfunc1(length(levels(Shk.leg$Intensity)))
+  names(Shk.leg.cols)=levels(Shk.leg$Intensity)
+  
+  Shk.leg=rbind(Shk.leg,
+                data.frame(Date=as.POSIXct("2025-12-31"),
+                           Cum.conditions=Shk.leg$Cum.conditions[nrow(Shk.leg)],
+                           Intensity=Shk.leg$Intensity[nrow(Shk.leg)]))
+  
+  
+  p_Oz.leg=Shk.leg%>%
+            ggplot(aes(Date,Cum.conditions))+
+            theme_PA(axs.t.siz=9,axs.T.siz=11)+
+            xlab('Year')+ylab('Cumulative # WTO conditions')+
+            ylim(0,NA)
+  
+  Shk.legis.dates=Shk.leg$Date 
+  for(i in 1:(length(Shk.legis.dates)-1))
+  {
+    a=Shk.leg%>%filter(Date%in%Shk.legis.dates[i:(i+1)])
+    b=data.frame(Intensity=a$Intensity[1],
+                 Date=c(a$Date,rev(a$Date)),
+                 Cum.conditions=c(a$Cum.conditions[1],a$Cum.conditions[1],a$Cum.conditions[2],a$Cum.conditions[1]))
+    b$Cum.conditions[1:2]=0
+    p_Oz.leg=p_Oz.leg+
+                geom_polygon(data=b,aes(Date,Cum.conditions,fill=Intensity))
+  }
+  p_Oz.leg=p_Oz.leg+
+    geom_line(data=Shk.leg,aes(Date,Cum.conditions),linewidth=1.25,color="black")+
+    theme(legend.position = 'none')+
+    scale_fill_manual(values=Shk.leg.cols)
+    
   
   #4. Spatial squeeze. WA
   #4.1 global MPAs  https://map.navigatormap.org/
@@ -1764,24 +1788,23 @@ if(do.regulations.info)
            OZ=ifelse(Country=='Australia','Australia','Other'))
   
   Oz.MPAs=Global.MPAs%>%filter(Country=='Australia')
-  OZ.label=paste0('Australia:',
-                  '\nMPA network= 4.6 M (',Oz.MPAs$MPA.coverage.WDPA,
-                  '% total marine area)\n No take= 2.2 M (',
-                  Oz.MPAs$MPA.coverage.heavily.or.most.restricted,'% total marine area)')
-  
+  OZ.label=paste0('Whole network= 4.6 M (',Oz.MPAs$MPA.coverage.WDPA,
+                  '% of total marine area)\n No take= 2.2 M (',
+                  Oz.MPAs$MPA.coverage.heavily.or.most.restricted,'% of total marine area)')
+  Oz.kol='darkgreen'
   p.MPA.global=Global.MPAs%>%
-    ggplot(aes(MPA.surface,fill=OZ))+
-    geom_histogram(bins=50,show.legend = FALSE)+
-    theme_PA()+
-    labs(x = expression(paste("Total surface of MPA network by country (", km^2,')')))+
-    ylab('Frequency')+
-    scale_x_continuous(labels = scales::comma)+
-    scale_fill_manual(values = c(Australia='brown',Other='grey60'))+
-    geom_text_repel(data=Oz.MPAs,aes(x=MPA.surface),y=0,label=OZ.label,
-                    nudge_y = 10,
-                    force = 2,
-                    box.padding = 2,
-                    color='brown',size=4)
+          ggplot(aes(MPA.surface,fill=OZ))+
+          geom_histogram(bins=50,show.legend = FALSE)+
+          theme_PA(axs.t.siz=8,axs.T.siz=12)+
+          theme(axis.title.y = element_text(margin = margin(t = 0)),
+                axis.title.x = element_text(margin = margin(t = 0)))+
+          labs(x = expression(paste("Total surface of MPA network by country (", km^2,')')))+
+          ylab('Frequency')+
+          scale_x_continuous(labels = scales::comma)+
+          scale_fill_manual(values = c(Australia=Oz.kol,Other='grey60'))+
+          geom_text(x=1.8e6,y=47,label='Australia',size=5,fontface = "bold",color=Oz.kol,hjust = 0)+
+          geom_text_repel(data=Oz.MPAs,aes(x=MPA.surface),y=0,label=OZ.label,hjust = 0,
+                          nudge_y = 10,force = 2,box.padding = 2,color=Oz.kol,size=3.5)
   
   #4.2 WA sharks closures and MPAs 
   Map.hndl=handl_OneDrive("Data/Mapping/")
@@ -1796,13 +1819,14 @@ if(do.regulations.info)
                   LeG.Siz,Axs.t,Axs.T)
   {
     p=ggplot(data = world) +
-      geom_sf(color = "black", fill = "grey60",alpha=0.4) +
+      geom_sf(color = "black", fill = "grey75",alpha=0.4) +
       xlab("") + ylab("")+
       scale_x_continuous(breaks=seq(round(Limx)[1],round(Limx)[2],SEQ))+
       scale_y_continuous(breaks=seq(round(Limy)[1],round(Limy)[2],SEQ))+
       ylab('Latitude')+xlab('Longitude')+
       theme_PA(leg.siz=LeG.Siz,axs.t.siz=Axs.t,axs.T.siz=Axs.T)+
-      theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1))
+      theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1))+
+      coord_sf(xlim =Limx , ylim = Limy, expand = T)
     if(add.depth)
     {
       p=p+
@@ -1825,22 +1849,31 @@ if(do.regulations.info)
         geom_sf(data = Park_Northern.Kimberley,fill=State.col,alpha=alpha.parks)+
         geom_sf(data = Park_Yawuru.Roebuck,fill=State.col,alpha=alpha.parks)+
         coord_sf(xlim =Limx , ylim = Limy, expand = T)
+      
+      #get legend
       leg.dat=data.frame(x=seq(Limx[2]*.9,Limx[2],length.out=4),
                          y=seq(Limy[2]*.9,Limy[2],length.out=4),
                          Name=c('Fishery closure','ASL closure','Commonwealth park','State park'))
       leg.col=c(FishClose.col,ASL.col,Comm.col,State.col)
       names(leg.col)=c('Fishery closure','ASL closure','Commonwealth park','State park')
-      p=p+
-        geom_point(data=leg.dat,aes(x=x,y=y,color=Name))+
+      p_legend=leg.dat%>%
+        ggplot()+
+        geom_point(aes(x=x,y=y,color=Name))+ 
+        theme_void()+
         theme(legend.title = element_blank(),
-              legend.position = 'bottom')+
+              legend.position = 'right',
+              legend.text=element_text(size=6.5),
+              legend.key.spacing.x = unit(0,'cm'),
+              legend.key.spacing.y = unit(0,'cm'),
+              legend.margin=margin(-10, 0, 0, 0))+
         scale_color_manual(values=leg.col)+
-        guides(color = guide_legend(nrow=NRW.leg,byrow=TRUE,
-                                    override.aes = list(alpha = alpha.parks,size = 1)))
+        guides(color = guide_legend(override.aes = list(size = 3)))
+      legend_only<-g_legend(p_legend) 
       
-      
+      p=ggdraw() +
+        draw_plot(p)+draw_plot(legend_only, x = 0.585, y = .5, width = .2, height = .1)
     }
-    p=p+coord_sf(xlim =Limx , ylim = Limy, expand = T)
+    
     return(p)
   }
   #Get Parks and closures 
@@ -1858,23 +1891,23 @@ if(do.regulations.info)
   Park_WA_Commonwealth_Marine_Parks=st_read(paste0(Map.hndl,"park boundaries/WA_Commonwealth_Marine_Parks/WA_Commonwealth_Marine_Parks.shp"))
   Park_Yawuru.Roebuck=st_read(paste0(Map.hndl,"park boundaries/Yawuru Roebuck/pmcr-rbmp-zoning-hwm_kim_20160830.shp"))
   
-  #plot map with bathymetry and marine parks
-  p_sp.squiz=fn.map(Limx=c(112,130), Limy=c(-36,-13), 
+  #plot map with marine parks
+  p_sp.squiz=fn.map(Limx=c(110,130), Limy=c(-38,-13), 
                     Depth.data=Bathymetry,add.depth=FALSE,SEQ=3,
                     add.parks=TRUE,NRW.leg=2,
-                    FishClose.col='cyan2',ASL.col='cadetblue4',
+                    FishClose.col='cyan2',ASL.col='orange',
                     Comm.col='chartreuse4',State.col='brown',  #aquamarine3
-                    alpha.parks=.5,
-                    LeG.Siz=8,Axs.t=8,Axs.T=11)+
+                    alpha.parks=.7,
+                    LeG.Siz=8,Axs.t=8,Axs.T=15)+
                   theme(legend.margin=margin(0,0,0,0),
                         legend.box.margin=margin(-10,-10,-10,-10))
                 
   #Combine plots
   plot_grid(plot_grid(p_KDE,p.MPA.global,ncol=2,labels=c('A','B')),
             plot_grid(p_status,p_Oz.leg,p_sp.squiz,ncol=3,nrow=1,
-                      rel_widths = c(1,1,1.25),labels=c('C','D','E')),
+                      rel_widths = c(1,1,.8),labels=c('C','D','E')),
             rel_heights = c(1, 1),nrow=2,ncol=1)
-  ggsave(paste0(hndl.out,"Infographic_Exporting management.jpg"),width = 10,height = 6) 
+  ggsave(paste0(hndl.out,"Infographic_Exporting management.jpg"),width = 9,height = 6) 
   
 
 }
