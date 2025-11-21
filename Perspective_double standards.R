@@ -9,10 +9,12 @@ library(ggrepel)
 library(scales)
 library(forcats)
 library(sf)
+library(ggalluvial)
 
 if(!exists('handl_OneDrive')) source('C:/Users/myb/OneDrive - Department of Primary Industries and Regional Development/Matias/Analyses/SOURCE_SCRIPTS/Git_other/handl_OneDrive.R')
 hndl.out=handl_OneDrive("Scientific manuscripts/Perspective_Double standards/6. Outputs/")
 source(handl_OneDrive('Analyses/SOURCE_SCRIPTS/Git_other/ggplot.themes.R'))
+hndl.in=handl_OneDrive("Data/Seafood imports and exports/")
 
 # Country Performance indices --------------------------------------------------------------------
 #note: https://impact.economist.com/projects/illicit-trade-environment-index classes rankings as
@@ -584,7 +586,6 @@ if(do.production.info)
   
   #1.2. Imports and exports by Country, Australian State and TradeCode
   #source https://www.agriculture.gov.au/abares/research-topics/trade/dashboard
-  hndl.in=handl_OneDrive("Data/Seafood imports and exports/") 
   ABARES_trade_data=fread(paste0(hndl.in,'ABARES_trade_data.csv'))%>%data.frame
   C3803499_HTISC=fread(paste0(hndl.in,'C3803499_HTISC.csv'))%>%data.frame
   C4203471_AHECC=fread(paste0(hndl.in,'C4203471_AHECC.csv'))%>%data.frame
@@ -1252,6 +1253,7 @@ if(do.production.info)
   
   p.yr.list=vector('list',length=length(Yr.list))
   names(p.yr.list)=Yr.list
+  Imp.Countries=p.yr.list
   
   #Risk legend
   p.risk=RiskColors%>%ggplot(aes(x=1,y=1:nrow(RiskColors),fill=Risk))+
@@ -1271,6 +1273,8 @@ if(do.production.info)
     imp.flow=sum(dd$Var)
     imports=fn.barplt(d=dd%>%mutate(Var=Var/sum(Var,na.rm=T)),show.LGN=FALSE,
                       Y.lbl='Proportion of imports',yMX=NULL,custom_colors=KLS.country,LBL.size=3)
+    Imp.Countries[[i]]=levels(imports$data$Country)
+    Imp.Countries[[i]]=subset(Imp.Countries[[i]],!Imp.Countries[[i]]=="Other")
     
     dd=d1%>%
       filter(Year==Yr.list[i] & TradeFlow=='Exports')%>%
@@ -1380,6 +1384,97 @@ if(do.production.info)
             plot_grid(p_ann.imp.indices,p.trade.comm[[2]],rel_widths = c(1.4, 1),labels=c('B','C')),
             nrow=2,ncol=1,labels=c('A','B','C'))
   ggsave(paste0(hndl.out,"Infographic_Map_trade flow.jpg"),width = 10,height = 6) 
+  
+  
+  #ACA
+  #Sankey current imports by commodity, country and state
+  sankey.fun=function(dd,YR,Kommodity,explained.prop=Explain.prop,drop.other=TRUE)
+  {
+    dd=dd%>%
+      filter(Year==YR)
+    if(!is.null(Kommodity))  dd=dd%>%filter(Commodity%in%Kommodity)
+    if(is.null(Kommodity))
+    {
+      dd1=dd%>%
+        group_by(Commodity)%>%
+        summarise(Var=sum(Quantity_tonnes,na.rm=T))%>%
+        ungroup()%>%
+        arrange(-Var)%>%
+        mutate(CumSum=cumsum(Var),
+               Prop=CumSum/sum(Var),
+               Commodity1=ifelse(Prop<=explained.prop,Commodity,'Other'))
+      dd=dd%>%
+        left_join(dd1%>%dplyr::select(Commodity,Commodity1),by='Commodity')%>%
+        dplyr::select(-Commodity)%>%rename(Commodity=Commodity1)
+      
+    }
+    
+    dd2=dd%>%
+      group_by(Commodity,Country,State)%>%
+      summarise(value=sum(Quantity_tonnes), .groups = 'drop')%>%
+      data.frame()%>%
+      mutate(Commodity=ifelse(Commodity=='Other','Other comm.',Commodity))
+    
+    if(drop.other)
+    {
+      dd2=dd2%>%filter(!Commodity=='Other comm.')
+      dd2=dd2%>%filter(!Country=='Other')
+    }
+    
+    
+    if(!is.null(Kommodity))
+    {
+      p=dd2%>%
+        ggplot(aes(y = value, axis1 = Country, axis2 = State)) +
+        geom_alluvium(aes(fill = Country), width = .5) + 
+        geom_stratum(aes(fill = Country), width = .5)+
+        scale_x_discrete(limits = c("Country", "State")) 
+    }
+    if(is.null(Kommodity))
+    {
+      p=dd2%>%
+        ggplot(aes(y = value, axis1 = Country, axis2 = Commodity, axis3 = State)) +
+        geom_alluvium(aes(fill = Country), width = .5) + 
+        geom_stratum(aes(fill = Country), width = .5)+
+        scale_x_discrete(limits = c("Country", "Commodity", "State")) 
+      
+    }
+    p=p+
+      geom_text(stat = "stratum", aes(label = after_stat(stratum)), size = 4) +
+      ggtitle(Kommodity)+
+      theme_void()+
+      scale_fill_brewer(palette = "Spectral",na.value = "grey95")+
+      theme(legend.position = 'none')
+    
+    return(p)
+  }
+  
+  Com.vec=c('Mixed finfish','Tunas & billfish','Prawns','Cuttlefish',
+            'Salmons & trouts','Tilapias, catfish, Nile perch & Carps',
+            'Anchovies & sardines','Hakes','Dogfish & other sharks')
+  store.Com.vec=vector('list',length(Com.vec))
+  names(store.Com.vec)=Com.vec
+  
+  dis.Countries=Imp.Countries[[2]]
+  dis.Countries=subset(dis.Countries,!dis.Countries=='Chile')#minor catch in 2021
+  dd.sankey=ABARES_trade_data%>%
+    rename(Commodity=Group1,
+           Year=Calendar_year)%>%
+    filter(TradeFlow=='Imports')%>%
+    filter(!Commodity%in%Non.comsumption)%>%
+    mutate(Country=ifelse(Country%in%dis.Countries,Country,"Other"))%>%
+    group_by(Commodity,Year,Country,State,TradeFlow)%>%
+    summarise(Quantity_tonnes=sum(Quantity_tonnes,na.rm=T))%>%
+    ungroup()
+  
+  for(s in 1:length(Com.vec))
+  {
+    store.Com.vec[[s]]=sankey.fun(dd=dd.sankey, YR=Yr.list[2], Kommodity=Com.vec[s])
+  }
+  
+  p.sankey.all=sankey.fun(dd=dd.sankey, YR=Yr.list[2], Kommodity=NULL)
+  print(p.sankey.all)
+  ggsave(paste0(hndl.out,"Infographic_sankey_current imports.jpg"),width = 6,height = 6)
   
 }
 
