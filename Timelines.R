@@ -428,7 +428,7 @@ p_Map=ggplot(data = Australia) +
   theme(plot.subtitle = element_text(size=11,vjust = -3,color=SP.kol))
 
     #add ellipse
-add.ellipse=FALSE
+add.ellipse=TRUE
 if(add.ellipse)
 {
   p_Map=p_Map+
@@ -546,12 +546,14 @@ for(i in 1:length(Sp.shape))
 
 #Combine all
 ggdraw(p) +
-  draw_plot(p_inset, x = 0.05, y = 0.4, width = 0.5, height = 0.68) 
+  draw_plot(p_inset, x = 0.025, y = 0.4, width = 0.4, height = 0.58) 
 ggsave(paste0(hndl.out,"Chronology_pop.growth_v1.jpg"),width = 8,height = 6)
 
 ggdraw(p) +
-  draw_plot(p_inset, x = 0, y = 0.4, width = 0.5, height = 0.68) + 
-  draw_plot(p_pie_inset, x = 0.2, y = 0.66, width = 0.35, height = 0.35)
+  draw_plot(p_inset, x = 0.025, y = 0.4, width = 0.4, height = 0.58) +
+  draw_plot(p_pie_inset, x = 0.7, y = 0.05, width = 0.35, height = 0.35)
+#  draw_plot(p_inset, x = 0, y = 0.4, width = 0.5, height = 0.68) + 
+#  draw_plot(p_pie_inset, x = 0.2, y = 0.66, width = 0.35, height = 0.35)
 ggsave(paste0(hndl.out,"Chronology_pop.growth_v2.jpg"),width = 8,height = 6)
 
 ggdraw(p) +
