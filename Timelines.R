@@ -2,7 +2,7 @@
 # https://r-graph-gallery.com/web-sankey-refugees.html
 #https://r-graph-gallery.com/web-sankey-diagram-with-highlight.html
 
-
+rm(list=ls(all=TRUE))
 library(tidyverse)
 library(ggsankey)
 library(shadowtext)
@@ -225,46 +225,43 @@ function.chronology.basic.timeline=function(d,Start.x,End.x,yr.seq=25,Lbl.width=
   return(p) 
 }
 
-colfunc <- colorRampPalette(c("slategray1", "royalblue4")) #plot(1:8,1:8,col=colfunc(8), pch = 19, cex = 3)
+colfunc <- colorRampPalette(c("slategray1", "steelblue3")) #plot(1:8,1:8,col=colfunc(8), pch = 19, cex = 3)
 function.chronology.pop.growth.timeline=function(d,Labls,lbl.width,start.year,end.year,
                                                  Nudge_y,Nudge_x,Point.padding,Box.padding,
                                                  Force,text.labelling,lbl.size,ln.width,
-                                                 Arrow.width,Kls,Max.ovrlp,add.arrow,Topic.kls)
+                                                 Arrow.width,Max.ovrlp,add.arrow,Topic.kls,
+                                                 SEQ,lbls.klr.blk=TRUE,kl.tick='grey20')
 {
   #base map
   p=d%>%
     ggplot(aes(Year,Total))+
     labs(caption = 'Source: ABS Historical Population Statistics')+
-    scale_x_date(name = "", date_breaks = "20 years", date_labels = "%Y",
-                 limits=c(as.Date(paste0(start.year-6,'-01-01')),as.Date(paste0(end.year,'-01-01')))) +
+    scale_x_date(name = "",
+                 date_minor_breaks='5 year',
+                 breaks = as.Date(paste0(SEQ,'-01-01')),
+                 date_labels = "%Y",
+                 limits=c(as.Date(paste0(start.year,'-01-01')),as.Date(paste0(end.year,'-01-01')))) +
     scale_y_continuous(name = 'Population size of Western Australia',labels = label_number(scale = 1e-6, suffix = "M"))+
     theme_minimal() +
     theme(legend.position = "top",
           axis.title=element_text(size=14),
-          panel.grid.minor.x = element_blank(),
+          panel.grid.major.x = element_line(color=kl.tick),
+          panel.grid.major.y = element_line(color=kl.tick),
+          panel.grid.minor.x = element_line(linetype = "dotted", color = "gray"), #,linetype = 3
           panel.grid.minor.y = element_blank())
-  if(!add.arrow)  p=p+geom_line(linewidth=ln.width,color=Kls[7])
-  if(add.arrow) p=p+geom_line(linewidth=ln.width,color=Kls[7],arrow = arrow(type = "open",length=unit(Arrow.width, "npc")))
+  if(!add.arrow)  p=p+geom_line(linewidth=ln.width,color='slategray1')
+  if(add.arrow) p=p+geom_line(linewidth=ln.width,color=Kls[length(Kls)],arrow = arrow(type = "open",length=unit(Arrow.width, "npc")))
   
   #color code periods
-  p=p+
-    geom_line(data=d%>%filter(Year>=as.Date(paste0(start.year-6,'-01-01')) & Year<= as.Date(paste0(1900,'-01-01'))),
-              aes(Year,Total),linewidth=ln.width,color=Kls[1])+
-    geom_line(data=d%>%filter(Year>=as.Date(paste0(1899,'-01-01')) & Year<= as.Date(paste0(1920,'-01-01'))),
-              aes(Year,Total),linewidth=ln.width,color=Kls[2])+
-    geom_line(data=d%>%filter(Year>=as.Date(paste0(1919,'-01-01')) & Year<= as.Date(paste0(1940,'-01-01'))),
-              aes(Year,Total),linewidth=ln.width,color=Kls[3])+
-    geom_line(data=d%>%filter(Year>=as.Date(paste0(1939,'-01-01')) & Year<= as.Date(paste0(1960,'-01-01'))),
-              aes(Year,Total),linewidth=ln.width,color=Kls[4])+
-    geom_line(data=d%>%filter(Year>=as.Date(paste0(1959,'-01-01')) & Year<= as.Date(paste0(1980,'-01-01'))),
-              aes(Year,Total),linewidth=ln.width,color=Kls[5])+
-    geom_line(data=d%>%filter(Year>=as.Date(paste0(1979,'-01-01')) & Year<= as.Date(paste0(2000,'-01-01'))),
-              aes(Year,Total),linewidth=ln.width,color=Kls[6])+
-    geom_line(data=d%>%filter(Year>=as.Date(paste0(2000,'-01-01')) & Year<= as.Date(paste0(2020,'-01-01'))),
-              aes(Year,Total),linewidth=ln.width,color=Kls[7])+
-    geom_line(data=d%>%filter(Year>=as.Date(paste0(2020,'-01-01')) & Year<= as.Date(paste0(2025,'-01-01'))),
-              aes(Year,Total),linewidth=ln.width,color=Kls[8])
-  
+  N.periods=length(SEQ)-1
+  Kls=colfunc(N.periods)
+  for(s in 1:N.periods)
+  {
+    p=p+
+      geom_line(data=d%>%filter(Year>=as.Date(paste0(SEQ[s],'-01-01')) & Year<= as.Date(paste0(SEQ[s+1],'-01-01'))),
+                aes(Year,Total),linewidth=ln.width,color=Kls[s])
+  }
+
   #add labels
   timeline.labls=Labls%>%
     rename(x=Year_from)%>%
@@ -274,11 +271,23 @@ function.chronology.pop.growth.timeline=function(d,Labls,lbl.width,start.year,en
   if(text.labelling=='repel')
   {
     timeline.labls=timeline.labls%>%mutate(Label=str_wrap(Label,width=lbl.width))
+    if(!lbls.klr.blk)
+    {
+      p=p+
+        geom_text_repel(data=timeline.labls,aes(x,y,label = Label,color=Topic),
+                        show.legend = FALSE,max.overlaps = Max.ovrlp,min.segment.length = 0,
+                        nudge_y=Nudge_y,nudge_x = Nudge_x, point.padding = Point.padding,
+                        box.padding = Box.padding,force=Force,seed=666,size=lbl.size)
+    }
+    if(lbls.klr.blk)
+    {
+      p=p+
+        geom_text_repel(data=timeline.labls,aes(x,y,label = Label),
+                        show.legend = FALSE,max.overlaps = Max.ovrlp,min.segment.length = 0,
+                        nudge_y=Nudge_y,nudge_x = Nudge_x, point.padding = Point.padding,
+                        box.padding = Box.padding,force=Force,seed=666,size=lbl.size)
+    }
     p=p+
-      geom_text_repel(data=timeline.labls,aes(x,y,label = Label,color=Topic),
-                      show.legend = FALSE,max.overlaps = Max.ovrlp,min.segment.length = 0,
-                      nudge_y=Nudge_y,nudge_x = Nudge_x, point.padding = Point.padding,
-                      box.padding = Box.padding,force=Force,seed=666,size=lbl.size)+
       scale_color_manual(values=Topic.kls) 
   }
   if(text.labelling=='basic')
@@ -302,39 +311,46 @@ Start.Fisheries.Department=1893
 WA.population=read.csv(paste0(hndl.in,'WA population.csv'))%>%
   mutate(Year=as.Date(paste0(Year,'-01-01')),
          Total=as.numeric(Total))
-Chronology_original=read.csv(paste0(hndl.in,'table - timeline chronology.csv'))
 Chronology_Karina=read_excel(paste0(hndl.in,'table - timeline chronology (1)(100 years timeline milestones).xlsx'), sheet = "Data",skip = 0)
-Chronology=read_excel(paste0(hndl.in,'timeline - condensed for figure_AB.xlsx'), sheet = "Sheet1",skip = 0)
+Chronology_AB=read_excel(paste0(hndl.in,'timeline - condensed for figure_AB.xlsx'), sheet = "Sheet1",skip = 0)
+Chronology=read_excel(paste0(hndl.in,'timeline - condensed for figure.xlsx'), sheet = "Sheet1",skip = 0)
+
 
 if(!'ForTimelineFig'%in%names(Chronology)) Chronology$ForTimelineFig='Y'
 Chronology=Chronology%>%
-  mutate(Topic=ifelse(is.na(Theme),'No topic',Theme),
-         Label=ifelse(is.na(Label),'No label',
-               ifelse(Label=='Right to fish' & Year<1900,paste0(Label,' (',Year,')'),
-                      Label)),
-         ForTimelineFig=case_when(ForTimelineFig=='YES'~'Y',
-                                  TRUE~ForTimelineFig),
-         Year=ifelse(Year<1900 & grepl('Right to fish',Label),1900,Year),
-         Year_start=Year,
-         Year_end=NA,
-         Year_start1=ifelse(!is.na(Year_end),(Year_end+Year_start)/2,Year_start),
-         Year_from=as.Date(paste0(round(Year_start1),'-01-01')))%>%
-  filter(!is.na(ForTimelineFig))%>%
-  filter(!ForTimelineFig=='N')%>%
-  arrange(Year_from)%>%
-  dplyr::select(-c(Year_end))
+            filter(Keep=='Yes')%>%
+            mutate(Topic=ifelse(is.na(Theme),'No topic',Theme),
+                   Label=ifelse(is.na(Label),'No label',
+                         ifelse(Label=='Right to fish' & Year<1900,paste0(Label,' (',Year,')'),
+                                Label)),
+                   ForTimelineFig=case_when(ForTimelineFig=='YES'~'Y',
+                                            TRUE~ForTimelineFig),
+                   Year=ifelse(Year<1900 & grepl('Right to fish',Label),1900,Year),
+                   Year_start=Year,
+                   Year_end=NA,
+                   Year_start1=ifelse(!is.na(Year_end),(Year_end+Year_start)/2,Year_start),
+                   Year_from=as.Date(paste0(round(Year_start1),'-01-01')))%>%
+            filter(!is.na(ForTimelineFig))%>%
+            filter(!ForTimelineFig=='N')%>%
+            arrange(Year_from)%>%
+            dplyr::select(-c(Year_end))
 
 #Start chronology
 Start.chronos=1925
 Chronology=Chronology%>%filter(Year>=Start.chronos)
 
-# Chronology=Chronology%>%
-#   mutate(type=ifelse(is.na(Year_end),'dot','bar'),
-#          Year_start1=ifelse(!is.na(Year_end),(Year_end+Year_start)/2,Year_start),
-#          Year_from=as.Date(paste0(Year_start1,'-01-01')),
-#          Year_to=ifelse(is.na(Year_end), Year_start1,Year_end),
-#          Year_to=as.Date(paste0(Year_to,'-01-01')))%>%
-#   arrange(Year_from)
+do.this=FALSE
+if(do.this)
+{
+  Chronology=Chronology%>%
+    mutate(type=ifelse(is.na(Year_end),'dot','bar'),
+           Year_start1=ifelse(!is.na(Year_end),(Year_end+Year_start)/2,Year_start),
+           Year_from=as.Date(paste0(Year_start1,'-01-01')),
+           Year_to=ifelse(is.na(Year_end), Year_start1,Year_end),
+           Year_to=as.Date(paste0(Year_to,'-01-01')))%>%
+    arrange(Year_from)
+}
+
 
 
 #Inset - Add shape of main commercial species proportional to catch
@@ -447,25 +463,27 @@ names(topic.kls)=c("Recreational","Assessment","Commercial","Monitoring","Popula
                    "No topic","Management","Department")
 
    
-
+#ACA
 p=function.chronology.pop.growth.timeline(d=WA.population,
                                           Labls=Chronology,
                                           lbl.width=45,
-                                          start.year=Start.Fisheries.Department,
-                                          end.year=2024,
+                                          start.year=Start.chronos, #Start.Fisheries.Department,
+                                          end.year=2025,
                                           Nudge_y=5,
                                           Nudge_x = 5,
-                                          Point.padding = 1,
-                                          Box.padding = .5,
+                                          Point.padding = 1.5,  #1
+                                          Box.padding = .65, #.5
                                           Force=1.5,
                                           text.labelling='repel',
-                                          lbl.size=2.8,
-                                          ln.width=8,
+                                          lbl.size=3.5, #2.8
+                                          ln.width=10,
                                           Arrow.width=.125,
-                                          Kls=rev(colfunc(8)),
                                           Max.ovrlp=100, #Max.ovrlp=Inf
                                           add.arrow=FALSE,
-                                          Topic.kls=topic.kls) 
+                                          Topic.kls=topic.kls,
+                                          SEQ=seq(Start.chronos,2025,by=25),
+                                          lbls.klr.blk=TRUE,   #FALSE for colored by topic
+                                          kl.tick='grey65')  #'tan4'
 
 
 #total catch pie chart
@@ -755,6 +773,8 @@ do.this=FALSE  #ACA
 if(do.this)
 {
   library(ggspatial)
+  library(sf)
+  source(handl_OneDrive('Analyses/SOURCE_SCRIPTS/Git_other/ggplot.themes.R'))
   world <- ne_countries(scale = "medium", returnclass = "sf")
   Map.hndl=handl_OneDrive("Data/Mapping/")
   Bathymetry_120=read.table(paste0(Map.hndl,"get_data112_120.cgi"))
@@ -807,7 +827,10 @@ if(do.this)
     geom_point(x=117.88,y=-35.026,size=pt.siz)+
     geom_text(x=117.88,y=-35.026+.25,label='Albany',size=Sz.town, hjust = 0,vjust=0,angle=25)+
     geom_point(x=121.89,y=-33.86,size=pt.siz)+
-    geom_text(x=121.89,y=-33.86+.25,label='Esperance',size=Sz.town, hjust = 0,vjust=0,angle=25)
+    geom_text(x=121.89,y=-33.86+.25,label='Esperance',size=Sz.town, hjust = 0,vjust=0,angle=25)+
+    geom_text(x=113.298+1,y=-25.78,label='Shark Bay',size=Sz.town, hjust = 0)+
+    geom_text(x=114.25+.4,y=-22.25,label='Exmouth Gulf',size=Sz.town, hjust = 0)
+  #  geom_text(x=113.13,y=-28.117,label='Houtman Abrolhos Islands',size=Sz.town, hjust = 0)
   
   print(p)
   ggsave(paste0(hndl.out,"Map.jpg"),width = ,height = 8)
