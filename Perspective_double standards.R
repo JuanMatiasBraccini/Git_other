@@ -434,7 +434,7 @@ fun.shark.trade.time=function(What,pt.size,line.size,NRW=1)
 }
 colfunc=colorRampPalette(c('brown4','cadetblue','darkolivegreen2'))
 sankey.fun=function(dd,YR,Kommodity,explained.prop=Explain.prop,drop.other=TRUE,WDTH=.5,
-                    FACET=FALSE,ALFA=.5,NA.kol="grey95")
+                    FACET=FALSE,ALFA=.5,NA.kol="grey95",KL.sank.txt="grey20")
 {
   dd=dd%>%
     filter(Year==YR)
@@ -506,7 +506,7 @@ sankey.fun=function(dd,YR,Kommodity,explained.prop=Explain.prop,drop.other=TRUE,
     
   }
   p=p+
-    geom_text(stat = "stratum", aes(label = after_stat(stratum)), size = 3.5,color="grey20") +
+    geom_text(stat = "stratum", aes(label = after_stat(stratum)), size = 3.5,color=KL.sank.txt) +
     ggtitle(Kommodity)+
     theme_void()+
     scale_fill_brewer(palette = "Spectral",na.value = NA.kol)+
@@ -1494,12 +1494,13 @@ if(do.production.info)
   }
   
   #by country-commodities-state
-  p.sankey.all=sankey.fun(dd=dd.sankey, YR=Yr.list[2], Kommodity=NULL,
-                          explained.prop=0.85,WDTH=0.65,ALFA=1,NA.kol="grey87")
+  p.sankey.all=sankey.fun(dd=dd.sankey, YR=Yr.list[2], Kommodity=NULL,explained.prop=0.85,
+                          WDTH=0.65,ALFA=1,NA.kol="grey87",KL.sank.txt="grey5")
   print(p.sankey.all)
   ggsave(paste0(hndl.out,"Infographic_sankey_current imports_1.combined.jpg"),width = 6.75,height = 6)
   
-  p.sankey.all=sankey.fun(dd=dd.sankey, YR=Yr.list[2], Kommodity=NULL,explained.prop=0.85,WDTH=0.65,FACET=TRUE,ALFA=.8) 
+  p.sankey.all=sankey.fun(dd=dd.sankey, YR=Yr.list[2], Kommodity=NULL,explained.prop=0.85,WDTH=0.65,
+                          FACET=TRUE,ALFA=.8,KL.sank.txt="grey20") 
   print(p.sankey.all)
   ggsave(paste0(hndl.out,"Infographic_sankey_current imports_1.combined_facet.jpg"),width = 8,height = 6)
   
