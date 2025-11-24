@@ -433,6 +433,88 @@ fun.shark.trade.time=function(What,pt.size,line.size,NRW=1)
   return(p)
 }
 colfunc=colorRampPalette(c('brown4','cadetblue','darkolivegreen2'))
+sankey.fun=function(dd,YR,Kommodity,explained.prop=Explain.prop,drop.other=TRUE,WDTH=.5,
+                    FACET=FALSE,ALFA=.5,NA.kol="grey95")
+{
+  dd=dd%>%
+    filter(Year==YR)
+  if(!is.null(Kommodity))  dd=dd%>%filter(Commodity%in%Kommodity)
+  if(is.null(Kommodity))
+  {
+    dd1=dd%>%
+      group_by(Commodity)%>%
+      summarise(Var=sum(Quantity_tonnes,na.rm=T))%>%
+      ungroup()%>%
+      arrange(-Var)%>%
+      mutate(CumSum=cumsum(Var),
+             Prop=CumSum/sum(Var),
+             Commodity1=ifelse(Prop<=explained.prop,Commodity,'Other'))
+    dd=dd%>%
+      left_join(dd1%>%dplyr::select(Commodity,Commodity1),by='Commodity')%>%
+      dplyr::select(-Commodity)%>%rename(Commodity=Commodity1)
+    
+  }
+  
+  dd2=dd%>%
+    group_by(Commodity,Country,State)%>%
+    summarise(value=sum(Quantity_tonnes), .groups = 'drop')%>%
+    data.frame()%>%
+    mutate(Commodity=ifelse(Commodity=='Other','Other comm.',Commodity),
+           State=case_when(State=="New South Wales"~"New South\nWales",
+                           TRUE~State))
+  
+  if(drop.other)
+  {
+    dd2=dd2%>%filter(!Commodity=='Other comm.')
+    dd2=dd2%>%filter(!Country=='Other')
+  }
+  
+  
+  if(!is.null(Kommodity))
+  {
+    p=dd2%>%
+      ggplot(aes(y = value, axis1 = Country, axis2 = State)) +
+      geom_alluvium(aes(fill = Country),alpha=ALFA, width = WDTH) + 
+      geom_stratum(aes(fill = Country),alpha=ALFA, width = WDTH)+
+      scale_x_discrete(limits = c("Country", "State")) 
+  }
+  if(is.null(Kommodity))
+  {
+    if(!FACET)
+    {
+      p=dd2%>%
+        mutate(Commodity=case_when(Commodity=="Tilapias, catfish, Nile perch & Carps"~"Tilapias, catfish,\nNile perch & Carps",
+                                   TRUE~Commodity),
+               State=case_when(State=="New South Wales"~"New South\nWales",
+                               TRUE~State))%>%
+        ggplot(aes(y = value, axis1 = Country, axis2 = Commodity, axis3 = State)) +
+        geom_alluvium(aes(fill = Country),alpha=ALFA, width = WDTH) + 
+        geom_stratum(aes(fill = Country),alpha=ALFA, width = WDTH)+
+        scale_x_discrete(limits = c("Country", "Commodity", "State"))
+    }
+    if(FACET)
+    {
+      p=dd2%>%
+        mutate(Commodity=case_when(Commodity=="Tilapias, catfish, Nile perch & Carps"~"Tilapias, catfish,\nNile perch & Carps",
+                                   TRUE~Commodity))%>%
+        ggplot(aes(y = value, axis1 = Country, axis2 = State)) +
+        geom_alluvium(aes(fill = Country),alpha=ALFA, width = WDTH) + 
+        geom_stratum(aes(fill = Country),alpha=ALFA, width = WDTH)+
+        scale_x_discrete(limits = c("Country", "State"))+
+        facet_wrap(~Commodity,scales='free')
+    }
+    
+  }
+  p=p+
+    geom_text(stat = "stratum", aes(label = after_stat(stratum)), size = 3.5,color="grey20") +
+    ggtitle(Kommodity)+
+    theme_void()+
+    scale_fill_brewer(palette = "Spectral",na.value = NA.kol)+
+    theme(legend.position = 'none',
+          strip.text.x = element_text(size = 12))
+  
+  return(p)
+}
 
 # Map of Australia --------------------------------------------------------------------
 Australia <- ne_states(country = "Australia", returnclass = "sf")
@@ -1386,77 +1468,13 @@ if(do.production.info)
   ggsave(paste0(hndl.out,"Infographic_Map_trade flow.jpg"),width = 10,height = 6) 
   
   
-  #ACA
-  #Sankey current imports by commodity, country and state
-  sankey.fun=function(dd,YR,Kommodity,explained.prop=Explain.prop,drop.other=TRUE)
-  {
-    dd=dd%>%
-      filter(Year==YR)
-    if(!is.null(Kommodity))  dd=dd%>%filter(Commodity%in%Kommodity)
-    if(is.null(Kommodity))
-    {
-      dd1=dd%>%
-        group_by(Commodity)%>%
-        summarise(Var=sum(Quantity_tonnes,na.rm=T))%>%
-        ungroup()%>%
-        arrange(-Var)%>%
-        mutate(CumSum=cumsum(Var),
-               Prop=CumSum/sum(Var),
-               Commodity1=ifelse(Prop<=explained.prop,Commodity,'Other'))
-      dd=dd%>%
-        left_join(dd1%>%dplyr::select(Commodity,Commodity1),by='Commodity')%>%
-        dplyr::select(-Commodity)%>%rename(Commodity=Commodity1)
-      
-    }
-    
-    dd2=dd%>%
-      group_by(Commodity,Country,State)%>%
-      summarise(value=sum(Quantity_tonnes), .groups = 'drop')%>%
-      data.frame()%>%
-      mutate(Commodity=ifelse(Commodity=='Other','Other comm.',Commodity))
-    
-    if(drop.other)
-    {
-      dd2=dd2%>%filter(!Commodity=='Other comm.')
-      dd2=dd2%>%filter(!Country=='Other')
-    }
-    
-    
-    if(!is.null(Kommodity))
-    {
-      p=dd2%>%
-        ggplot(aes(y = value, axis1 = Country, axis2 = State)) +
-        geom_alluvium(aes(fill = Country), width = .5) + 
-        geom_stratum(aes(fill = Country), width = .5)+
-        scale_x_discrete(limits = c("Country", "State")) 
-    }
-    if(is.null(Kommodity))
-    {
-      p=dd2%>%
-        ggplot(aes(y = value, axis1 = Country, axis2 = Commodity, axis3 = State)) +
-        geom_alluvium(aes(fill = Country), width = .5) + 
-        geom_stratum(aes(fill = Country), width = .5)+
-        scale_x_discrete(limits = c("Country", "Commodity", "State")) 
-      
-    }
-    p=p+
-      geom_text(stat = "stratum", aes(label = after_stat(stratum)), size = 4) +
-      ggtitle(Kommodity)+
-      theme_void()+
-      scale_fill_brewer(palette = "Spectral",na.value = "grey95")+
-      theme(legend.position = 'none')
-    
-    return(p)
-  }
   
+  #Sankey current imports by commodity, country and state
   Com.vec=c('Mixed finfish','Tunas & billfish','Prawns','Cuttlefish',
             'Salmons & trouts','Tilapias, catfish, Nile perch & Carps',
             'Anchovies & sardines','Hakes','Dogfish & other sharks')
-  store.Com.vec=vector('list',length(Com.vec))
-  names(store.Com.vec)=Com.vec
-  
   dis.Countries=Imp.Countries[[2]]
-  dis.Countries=subset(dis.Countries,!dis.Countries=='Chile')#minor catch in 2021
+  dis.Countries=subset(dis.Countries,!dis.Countries%in%c('Japan','Chile'))#minor catch in 2021
   dd.sankey=ABARES_trade_data%>%
     rename(Commodity=Group1,
            Year=Calendar_year)%>%
@@ -1467,14 +1485,23 @@ if(do.production.info)
     summarise(Quantity_tonnes=sum(Quantity_tonnes,na.rm=T))%>%
     ungroup()
   
+  #by individual commodity
   for(s in 1:length(Com.vec))
   {
-    store.Com.vec[[s]]=sankey.fun(dd=dd.sankey, YR=Yr.list[2], Kommodity=Com.vec[s])
+    p=sankey.fun(dd=dd.sankey, YR=Yr.list[2], Kommodity=Com.vec[s])
+    print(p)
+    ggsave(paste0(hndl.out,"Infographic_sankey_current imports_2.",Com.vec[s],".jpg"),width = 5,height = 6)
   }
   
-  p.sankey.all=sankey.fun(dd=dd.sankey, YR=Yr.list[2], Kommodity=NULL)
+  #by country-commodities-state
+  p.sankey.all=sankey.fun(dd=dd.sankey, YR=Yr.list[2], Kommodity=NULL,
+                          explained.prop=0.85,WDTH=0.65,ALFA=1,NA.kol="grey87")
   print(p.sankey.all)
-  ggsave(paste0(hndl.out,"Infographic_sankey_current imports.jpg"),width = 6,height = 6)
+  ggsave(paste0(hndl.out,"Infographic_sankey_current imports_1.combined.jpg"),width = 6.75,height = 6)
+  
+  p.sankey.all=sankey.fun(dd=dd.sankey, YR=Yr.list[2], Kommodity=NULL,explained.prop=0.85,WDTH=0.65,FACET=TRUE,ALFA=.8) 
+  print(p.sankey.all)
+  ggsave(paste0(hndl.out,"Infographic_sankey_current imports_1.combined_facet.jpg"),width = 8,height = 6)
   
 }
 
