@@ -19,7 +19,10 @@ hndl.in=handl_OneDrive("Data/Seafood imports and exports/")
 # Country Performance indices --------------------------------------------------------------------
 #note: https://impact.economist.com/projects/illicit-trade-environment-index classes rankings as
 # Major, 0-30; High, 30-50; Moderate, 50-70; Minor, 70-100 Risks
-Environmental.Performance.Index=fread(paste0(hndl.in,'Environmental.Performance.Index.csv'))%>% # (Wolf et al. 2022) https://epi.yale.edu/downloads
+
+  #Environmental Performance Index
+#source:  (Wolf et al. 2022) https://epi.yale.edu/downloads
+Environmental.Performance.Index=fread(paste0(hndl.in,'Environmental.Performance.Index.csv'))%>% 
   data.frame%>%
   dplyr::select(country,EPI.new)%>%
   rename(Country=country,
@@ -29,7 +32,9 @@ Environmental.Performance.Index=fread(paste0(hndl.in,'Environmental.Performance.
                            Country=="Viet Nam"~"Vietnam",
                            TRUE~Country))
 
-Global.ilicit.trade.index=fread(paste0(hndl.in,'Global ilicit trade index.csv'))%>% # (The Economist Intelligence Unit 2018) https://www.tracit.org/illicit-trade-index-visualization.html#rankingsSection
+#Global ilicit trade index
+#source: The Economist Intelligence Unit 2018) https://www.tracit.org/illicit-trade-index-visualization.html#rankingsSection
+Global.ilicit.trade.index=fread(paste0(hndl.in,'Global ilicit trade index.csv'))%>% 
   data.frame%>%
   rename(Value=Illicit.Trade.Index.Score)%>%
   mutate(Index='GITI',
@@ -37,7 +42,9 @@ Global.ilicit.trade.index=fread(paste0(hndl.in,'Global ilicit trade index.csv'))
                            Country=="Korea, Rep."~"South Korea",
                            TRUE~Country))
 
-Global.Slavery.Index=fread(paste0(hndl.in,'2023-Global-Slavery-Index.csv'))%>% # (The Walk Free Foundation 2023) https://www.walkfree.org/global-slavery-index/
+#Global Slavery Index
+#source: The Walk Free Foundation 2023) https://www.walkfree.org/global-slavery-index/
+Global.Slavery.Index=fread(paste0(hndl.in,'2023-Global-Slavery-Index.csv'))%>% 
   data.frame%>%
   rename(Value='Total.vulnerability.score..')%>%
   mutate(Index='GSI',
@@ -331,7 +338,8 @@ theme_stacked_bar <- function( ) {
     axis.text = element_text(size=3)
   )
 }
-fn.barplt2=function(dd,Ylab,LGN.titl,LGN.pos=c(0.7, 0.1),Axs.t.siz=12,Leg.siz=12,bckf.fil="grey99",PROP=0.95,NRW.leg=1)
+fn.barplt2=function(dd,Ylab,LGN.titl,LGN.pos=c(0.7, 0.1),Axs.t.siz=12,Leg.siz=12,
+                    bckf.fil="grey99",PROP=0.95,NRW.leg=1)
 {
   dd1=dd%>%
     group_by(Commodity)%>%
@@ -347,12 +355,16 @@ fn.barplt2=function(dd,Ylab,LGN.titl,LGN.pos=c(0.7, 0.1),Axs.t.siz=12,Leg.siz=12
     group_by(Commodity,TradeFlow)%>%
     summarise(Var=sum(Var))
   
+  dd=dd%>%
+    mutate(Commodity=case_when(Commodity=="Tilapias, catfish,\nNile perch & carps"~"Tilapias",
+                               TRUE~Commodity),
+           TradeFlow=factor(TradeFlow,levels=c('Imports','Exports')))
   p=dd%>%
-    mutate(TradeFlow=factor(TradeFlow,levels=c('Imports','Exports')))%>%
     ggplot(aes(Commodity,Var,fill=TradeFlow))+
     geom_bar(stat = 'identity',show.legend = FALSE)+
     coord_flip()+
-    theme_PA(axs.t.siz=Axs.t.siz,leg.siz=Leg.siz)+ylab(Ylab)+xlab('')+ scale_y_continuous(labels = comma)+
+    theme_PA(axs.t.siz=Axs.t.siz,leg.siz=Leg.siz)+
+    ylab(Ylab)+xlab('')+ scale_y_continuous(labels = comma)+
     theme(legend.position = LGN.pos,
           legend.key = element_rect(fill = "transparent"),
           panel.background = element_rect(fill = bckf.fil, colour = NA), 
@@ -361,13 +373,14 @@ fn.barplt2=function(dd,Ylab,LGN.titl,LGN.pos=c(0.7, 0.1),Axs.t.siz=12,Leg.siz=12
           legend.box.background = element_blank())
   if(any(!LGN.pos=='none'))
   {
-    p=p+geom_point(aes(y = 0, color = TradeFlow), size = 0, shape = 15) +
+    p=p+
+      geom_point(aes(y = 0, color = TradeFlow), size = 0, shape = 15) +
       guides(fill = guide_legend(nrow=NRW.leg,override.aes = list(size = 3)))
   }
   
   if(is.null(LGN.titl)) p=p+theme(legend.title = element_blank())
   if(!is.null(LGN.titl)) p=p+guides(fill=guide_legend(title=LGN.titl))
-  
+  if('Tilapias'%in%unique(dd$Commodity)) p=p+labs(caption = 'Tilapias= tilapias, catfish, Nile perch & carps')
   return(p)
 }
 fn.barplt.plain=function(d,Y.lbl,axs.size=13,lg.size=14)
@@ -1318,7 +1331,7 @@ if(do.production.info)
     ggsave(paste0(hndl.out,"Compare sources_exports.jpg"),width = 10,height = 6)
     
   }
-  # Fix d1_commodity 2021 bu adding lobster and abalone  
+  # Fix d1_commodity 2021 by adding lobster and abalone  
   d1_commodity=d1_commodity%>%
     filter(!(Commodity%in%c("Abalone","Lobsters") & TradeFlow=="Exports" & Year==Yr.list[2]))
   d1_commodity=rbind(d1_commodity,
@@ -1380,7 +1393,7 @@ if(do.production.info)
                                    rename(Var=Quantity_tonnes)%>%
                                    mutate(Var=Var/1000),
                                  Ylab="1000s Tonnes",
-                                 LGN.titl=NULL, #Yr.list[i]
+                                 LGN.titl=NULL, 
                                  LGN.pos=LGn.pos,
                                  Axs.t.siz=9,Leg.siz=12,
                                  bckf.fil="transparent",
@@ -1402,7 +1415,8 @@ if(do.production.info)
     
     p.trade[[i]]=ggdraw() +
                   draw_plot(p_Map+
-                              labs(title=names(p.yr.list)[i])+theme(plot.title = element_text(hjust=0.5,size=30))+
+                             # labs(title=names(p.yr.list)[i])+
+                              theme(plot.title = element_text(hjust=0.5,size=30))+
                               geom_curve(data=Arrow.dat,
                                          aes(x = x, y = y, xend = x.end, yend = y.end,color = Trade),size = Arrow.dat$Flow,
                                          arrow = arrow(length = unit(0.8, "cm"), type = "open"),
@@ -1435,8 +1449,8 @@ if(do.production.info)
           axis.title.x=element_blank(),
           panel.background = element_rect(fill = "transparent", colour = NA), 
           plot.background = element_rect(fill = "transparent", colour = NA))+
-    guides(fill = guide_legend(nrow = 1, byrow = TRUE))+
-    labs(caption='Commodities for human consumption only')
+    guides(fill = guide_legend(nrow = 1, byrow = TRUE))
+    #labs(caption='Commodities for human consumption only')
   add.import.volume=TRUE
   if(add.import.volume)
   {
@@ -1462,10 +1476,11 @@ if(do.production.info)
   
   
   #Create infographic
-  plot_grid(p.trade[[2]], 
-            plot_grid(p_ann.imp.indices,p.trade.comm[[2]],rel_widths = c(1.4, 1),labels=c('B','C')),
-            nrow=2,ncol=1,labels=c('A','B','C'))
-  ggsave(paste0(hndl.out,"Infographic_Map_trade flow.jpg"),width = 10,height = 6) 
+  plot_grid(plot_grid(p_ann.imp.indices,p.trade.comm[[2]]+ggtitle(Yr.list[2]),
+                      rel_widths = c(1.4, 1),labels=c('A','B')),
+            p.trade[[2]], 
+            nrow=2,ncol=1,labels=c('A','C'))
+  ggsave(paste0(hndl.out,"Paper figures/Figure 1.jpg"),width = 10,height = 6) 
   
   
   
@@ -1490,19 +1505,19 @@ if(do.production.info)
   {
     p=sankey.fun(dd=dd.sankey, YR=Yr.list[2], Kommodity=Com.vec[s])
     print(p)
-    ggsave(paste0(hndl.out,"Infographic_sankey_current imports_2.",Com.vec[s],".jpg"),width = 5,height = 6)
+    ggsave(paste0(hndl.out,"Sankeys/Current imports_2.",Com.vec[s],".jpg"),width = 5,height = 6)
   }
   
   #by country-commodities-state
   p.sankey.all=sankey.fun(dd=dd.sankey, YR=Yr.list[2], Kommodity=NULL,explained.prop=0.85,
                           WDTH=0.65,ALFA=1,NA.kol="grey87",KL.sank.txt="grey5")
   print(p.sankey.all)
-  ggsave(paste0(hndl.out,"Infographic_sankey_current imports_1.combined.jpg"),width = 6.75,height = 6)
+  ggsave(paste0(hndl.out,"Paper figures/Figure 3.jpg"),width = 6.75,height = 6)
   
   p.sankey.all=sankey.fun(dd=dd.sankey, YR=Yr.list[2], Kommodity=NULL,explained.prop=0.85,WDTH=0.65,
                           FACET=TRUE,ALFA=.8,KL.sank.txt="grey20") 
   print(p.sankey.all)
-  ggsave(paste0(hndl.out,"Infographic_sankey_current imports_1.combined_facet.jpg"),width = 8,height = 6)
+  ggsave(paste0(hndl.out,"Sankeys/Current imports_1.combined_facet.jpg"),width = 8,height = 6)
   
 }
 
@@ -1727,6 +1742,7 @@ do.regulations.info=FALSE
 if(do.regulations.info)
 {
   #1. Key Data Elements
+  #source: Harrison E, Ryland M, & Thomas Travaille K 2021,  Mending the Net: Strengthening Australia’s import policies to combat illegal seafood, Minderoo Foundation.
   Key.data.elements=read_excel(paste0(handl_OneDrive("Scientific manuscripts/Perspective_Double standards/1. Data sets/"),
                                         'Key Data Elements.xlsx'), sheet = "Sheet1",skip = 0)
   
@@ -1856,9 +1872,10 @@ if(do.regulations.info)
             
   
   
-  #3. Australian legislation. Case study WA Sharks  
+  #3. Australian legislation. Case study WA Sharks
+  #source: https://www.dcceew.gov.au/environment/marine/fisheries/wa/temperate-demersal-gillnet-longline
   Shark.legislation.timeline=read_excel(paste0(handl_OneDrive("Scientific manuscripts/Perspective_Double standards/1. Data sets/"),
-                                      'Shark legislation timeline.xlsx'), sheet = "description",skip = 0)
+                                      'Shark legislation timeline.xlsx'), sheet = "description_Liv",skip = 0)
   Shk.leg=Shark.legislation.timeline%>%
     rename(New.conditions='New conditions')%>%
     mutate(Cum.conditions=cumsum(New.conditions))%>%
@@ -2030,7 +2047,7 @@ if(do.regulations.info)
             plot_grid(p_status,p_Oz.leg,p_sp.squiz,ncol=3,nrow=1,
                       rel_widths = c(1,1,.8),labels=c('C','D','E')),
             rel_heights = c(1, 1),nrow=2,ncol=1)
-  ggsave(paste0(hndl.out,"Infographic_Exporting management.jpg"),width = 9,height = 6) 
+  ggsave(paste0(hndl.out,"Paper figures/Figure 2.jpg"),width = 9,height = 6) 
   
 
 }
