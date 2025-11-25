@@ -12,7 +12,7 @@ library(sf)
 library(ggalluvial)
 
 if(!exists('handl_OneDrive')) source('C:/Users/myb/OneDrive - Department of Primary Industries and Regional Development/Matias/Analyses/SOURCE_SCRIPTS/Git_other/handl_OneDrive.R')
-hndl.out=handl_OneDrive("Scientific manuscripts/Perspective_Double standards/6. Outputs/")
+hndl.out=handl_OneDrive("Scientific manuscripts/Opinion_double standards/3. Outputs/")
 source(handl_OneDrive('Analyses/SOURCE_SCRIPTS/Git_other/ggplot.themes.R'))
 hndl.in=handl_OneDrive("Data/Seafood imports and exports/")
 
@@ -550,7 +550,7 @@ if(do.production.info)
   #Tables 13 & 14 have exports by commodity and country, respectively
   #Tables 15 & 16 have imports by commodity and country, respectively
   
-  Exports=fun1(d=read_excel(paste0(handl_OneDrive("Scientific manuscripts/Perspective_Double standards/1. Data sets/"),
+  Exports=fun1(d=read_excel(paste0(handl_OneDrive("Scientific manuscripts/Opinion_double standards/1. Data sets/"),
                                    'AustFishAquacStats_2022_Tables_v1.0.0.xlsx'), sheet = "Table 13",skip = 7)%>%
                  filter(!grepl('Predominantly salmon. Includes trout and',Commodity))%>%
                  filter(!Commodity%in%c("Value","Quantity","Edible c","Edible","Non-edible","Edible c",
@@ -577,7 +577,7 @@ if(do.production.info)
     ungroup()%>%
     mutate(Type='Exports')
   
-  Imports=fun1(d=read_excel(paste0(handl_OneDrive("Scientific manuscripts/Perspective_Double standards/1. Data sets/"),
+  Imports=fun1(d=read_excel(paste0(handl_OneDrive("Scientific manuscripts/Opinion_double standards/1. Data sets/"),
                                    'AustFishAquacStats_2022_Tables_v1.0.0.xlsx'), sheet = "Table 15",skip = 7)%>%
                  filter(!grepl('Includes prepared and preserved',Commodity))%>%
                  filter(!Commodity%in%c("Value","Quantity","Edible c","Edible","Non-edible","Edible c",
@@ -610,7 +610,7 @@ if(do.production.info)
   use.this=FALSE  #superseded by #1.2.
   if(use.this)
   {
-    hndl.in=handl_OneDrive("Scientific manuscripts/Perspective_Double standards/1. Data sets/")
+    hndl.in=handl_OneDrive("Scientific manuscripts/Opinion_double standards/1. Data sets/")
     
     #wild caught fisheries and aquaculture production
     Production_table2=read_excel(paste0(hndl.in,'AustFishAquacStats_2022_Tables_v1.0.0.xlsx'), sheet = "Table 2",skip = 7)%>%
@@ -1743,7 +1743,7 @@ if(do.regulations.info)
 {
   #1. Key Data Elements
   #source: Harrison E, Ryland M, & Thomas Travaille K 2021,  Mending the Net: Strengthening Australia’s import policies to combat illegal seafood, Minderoo Foundation.
-  Key.data.elements=read_excel(paste0(handl_OneDrive("Scientific manuscripts/Perspective_Double standards/1. Data sets/"),
+  Key.data.elements=read_excel(paste0(handl_OneDrive("Scientific manuscripts/Opinion_double standards/1. Data sets/"),
                                         'Key Data Elements.xlsx'), sheet = "Sheet1",skip = 0)
   
   #Data manipulations
@@ -1874,7 +1874,7 @@ if(do.regulations.info)
   
   #3. Australian legislation. Case study WA Sharks
   #source: https://www.dcceew.gov.au/environment/marine/fisheries/wa/temperate-demersal-gillnet-longline
-  Shark.legislation.timeline=read_excel(paste0(handl_OneDrive("Scientific manuscripts/Perspective_Double standards/1. Data sets/"),
+  Shark.legislation.timeline=read_excel(paste0(handl_OneDrive("Scientific manuscripts/Opinion_double standards/1. Data sets/"),
                                       'Shark legislation timeline.xlsx'), sheet = "description_Liv",skip = 0)
   Shk.leg=Shark.legislation.timeline%>%
     rename(New.conditions='New conditions')%>%
@@ -1917,7 +1917,7 @@ if(do.regulations.info)
   
   #4. Spatial squeeze. WA
   #4.1 global MPAs  https://map.navigatormap.org/
-  Global.MPAs=read.csv(paste0(handl_OneDrive("Scientific manuscripts/Perspective_Double standards/1. Data sets/"),
+  Global.MPAs=read.csv(paste0(handl_OneDrive("Scientific manuscripts/Opinion_double standards/1. Data sets/"),
                               'map.navigatormap_org.csv'))
   Global.MPAs=Global.MPAs%>%
     mutate(MPA.coverage.WDPA=case_when(Country=='Australia'~52,      #as per https://www.dcceew.gov.au/environment/land/achieving-30-by-30#:~:text=Australia%20has%20one%20of%20the,'no%2Dtake'%20areas.
