@@ -528,7 +528,68 @@ sankey.fun=function(dd,YR,Kommodity,explained.prop=Explain.prop,drop.other=TRUE,
   
   return(p)
 }
-
+fn.map=function(Limx, Limy, Depth.data,add.depth,SEQ,add.parks,NRW.leg,
+                FishClose.col,ASL.col,Comm.col,State.col,alpha.parks,
+                LeG.Siz,Axs.t,Axs.T)
+{
+  p=ggplot(data = world) +
+    geom_sf(color = "black", fill = "grey75",alpha=0.4) +
+    xlab("") + ylab("")+
+    scale_x_continuous(breaks=seq(round(Limx)[1],round(Limx)[2],SEQ))+
+    scale_y_continuous(breaks=seq(round(Limy)[1],round(Limy)[2],SEQ))+
+    ylab('Latitude')+xlab('Longitude')+
+    theme_PA(leg.siz=LeG.Siz,axs.t.siz=Axs.t,axs.T.siz=Axs.T)+
+    theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1))+
+    coord_sf(xlim =Limx , ylim = Limy, expand = T)
+  if(add.depth)
+  {
+    p=p+
+      geom_contour(data = Depth.data%>%filter(V1>=Limx[1] & V1<=Limx[2] & V2>=Limy[1] & V2<=Limy[2]), 
+                   aes(x=V1, y=V2, z=V3),
+                   breaks=c(-50,-100,-200,-500),linetype="solid",colour="grey70")
+  }
+  
+  if(add.parks)
+  {
+    p=p+
+      geom_sf(data = Shark_Fishery_Closures,fill=FishClose.col,alpha=alpha.parks)+
+      geom_sf(data = ASL_Closures,fill=ASL.col,alpha=alpha.parks)+
+      geom_sf(data = ASL_Closures2,fill=ASL.col,alpha=alpha.parks)+
+      geom_sf(data = Park_WA_Commonwealth_Marine_Parks,fill=Comm.col,alpha=alpha.parks)+
+      geom_sf(data = Park_DBCA_SCMP,fill=State.col,alpha=alpha.parks)+
+      geom_sf(data = Park_Eighty.Mile,fill=State.col,alpha=alpha.parks)+
+      geom_sf(data = Park_Horizontal.Falls.and.North.Lalang,fill=State.col,alpha=alpha.parks)+
+      geom_sf(data = Park_Lalang.Garram.Camden.Sound,fill=State.col,alpha=alpha.parks)+
+      geom_sf(data = Park_Northern.Kimberley,fill=State.col,alpha=alpha.parks)+
+      geom_sf(data = Park_Yawuru.Roebuck,fill=State.col,alpha=alpha.parks)+
+      coord_sf(xlim =Limx , ylim = Limy, expand = T)
+    
+    #get legend
+    leg.dat=data.frame(x=seq(Limx[2]*.9,Limx[2],length.out=4),
+                       y=seq(Limy[2]*.9,Limy[2],length.out=4),
+                       Name=c('Fishery closure','ASL closure','Commonwealth park','State park'))
+    leg.col=c(FishClose.col,ASL.col,Comm.col,State.col)
+    names(leg.col)=c('Fishery closure','ASL closure','Commonwealth park','State park')
+    p_legend=leg.dat%>%
+      ggplot()+
+      geom_point(aes(x=x,y=y,color=Name))+ 
+      theme_void()+
+      theme(legend.title = element_blank(),
+            legend.position = 'right',
+            legend.text=element_text(size=6.5),
+            legend.key.spacing.x = unit(0,'cm'),
+            legend.key.spacing.y = unit(0,'cm'),
+            legend.margin=margin(-10, 0, 0, 0))+
+      scale_color_manual(values=leg.col)+
+      guides(color = guide_legend(override.aes = list(size = 3)))
+    legend_only<-g_legend(p_legend) 
+    
+    p=ggdraw() +
+      draw_plot(p)+draw_plot(legend_only, x = 0.585, y = .5, width = .2, height = .1)
+  }
+  
+  return(p)
+}
 # Map of Australia --------------------------------------------------------------------
 Australia <- ne_states(country = "Australia", returnclass = "sf")
 Limy=c(-42,-12)
@@ -1954,68 +2015,7 @@ if(do.regulations.info)
   
   
   world <- ne_countries(scale = "medium", returnclass = "sf")
-  fn.map=function(Limx, Limy, Depth.data,add.depth,SEQ,add.parks,NRW.leg,
-                  FishClose.col,ASL.col,Comm.col,State.col,alpha.parks,
-                  LeG.Siz,Axs.t,Axs.T)
-  {
-    p=ggplot(data = world) +
-      geom_sf(color = "black", fill = "grey75",alpha=0.4) +
-      xlab("") + ylab("")+
-      scale_x_continuous(breaks=seq(round(Limx)[1],round(Limx)[2],SEQ))+
-      scale_y_continuous(breaks=seq(round(Limy)[1],round(Limy)[2],SEQ))+
-      ylab('Latitude')+xlab('Longitude')+
-      theme_PA(leg.siz=LeG.Siz,axs.t.siz=Axs.t,axs.T.siz=Axs.T)+
-      theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1))+
-      coord_sf(xlim =Limx , ylim = Limy, expand = T)
-    if(add.depth)
-    {
-      p=p+
-        geom_contour(data = Depth.data%>%filter(V1>=Limx[1] & V1<=Limx[2] & V2>=Limy[1] & V2<=Limy[2]), 
-                     aes(x=V1, y=V2, z=V3),
-                     breaks=c(-50,-100,-200,-500),linetype="solid",colour="grey70")
-    }
-    
-    if(add.parks)
-    {
-      p=p+
-        geom_sf(data = Shark_Fishery_Closures,fill=FishClose.col,alpha=alpha.parks)+
-        geom_sf(data = ASL_Closures,fill=ASL.col,alpha=alpha.parks)+
-        geom_sf(data = ASL_Closures2,fill=ASL.col,alpha=alpha.parks)+
-        geom_sf(data = Park_WA_Commonwealth_Marine_Parks,fill=Comm.col,alpha=alpha.parks)+
-        geom_sf(data = Park_DBCA_SCMP,fill=State.col,alpha=alpha.parks)+
-        geom_sf(data = Park_Eighty.Mile,fill=State.col,alpha=alpha.parks)+
-        geom_sf(data = Park_Horizontal.Falls.and.North.Lalang,fill=State.col,alpha=alpha.parks)+
-        geom_sf(data = Park_Lalang.Garram.Camden.Sound,fill=State.col,alpha=alpha.parks)+
-        geom_sf(data = Park_Northern.Kimberley,fill=State.col,alpha=alpha.parks)+
-        geom_sf(data = Park_Yawuru.Roebuck,fill=State.col,alpha=alpha.parks)+
-        coord_sf(xlim =Limx , ylim = Limy, expand = T)
-      
-      #get legend
-      leg.dat=data.frame(x=seq(Limx[2]*.9,Limx[2],length.out=4),
-                         y=seq(Limy[2]*.9,Limy[2],length.out=4),
-                         Name=c('Fishery closure','ASL closure','Commonwealth park','State park'))
-      leg.col=c(FishClose.col,ASL.col,Comm.col,State.col)
-      names(leg.col)=c('Fishery closure','ASL closure','Commonwealth park','State park')
-      p_legend=leg.dat%>%
-        ggplot()+
-        geom_point(aes(x=x,y=y,color=Name))+ 
-        theme_void()+
-        theme(legend.title = element_blank(),
-              legend.position = 'right',
-              legend.text=element_text(size=6.5),
-              legend.key.spacing.x = unit(0,'cm'),
-              legend.key.spacing.y = unit(0,'cm'),
-              legend.margin=margin(-10, 0, 0, 0))+
-        scale_color_manual(values=leg.col)+
-        guides(color = guide_legend(override.aes = list(size = 3)))
-      legend_only<-g_legend(p_legend) 
-      
-      p=ggdraw() +
-        draw_plot(p)+draw_plot(legend_only, x = 0.585, y = .5, width = .2, height = .1)
-    }
-    
-    return(p)
-  }
+
   #Get Parks and closures 
   Shark_Fishery_Closures=st_read(paste0(Map.hndl,"Closures/Shark_Fishery_Closures/Shark_Fishery_Closures.shp"))
   #ASL_Closures=readOGR(paste0(Map.hndl,"Closures/ASL_closures/ASL_Closures.shp"), layer="ASL_Closures")
@@ -2042,10 +2042,10 @@ if(do.regulations.info)
                   theme(legend.margin=margin(0,0,0,0),
                         legend.box.margin=margin(-10,-10,-10,-10))
                 
-  #Combine plots
-  plot_grid(plot_grid(p_KDE,p.MPA.global,ncol=2,labels=c('A','B')),
+  #Combine plots #ACA
+  plot_grid(plot_grid(p_KDE,p.MPA.global,ncol=2,labels=c('A','C')),
             plot_grid(p_status,p_Oz.leg,p_sp.squiz,ncol=3,nrow=1,
-                      rel_widths = c(1,1,.8),labels=c('C','D','E')),
+                      rel_widths = c(1,1,.8),labels=c('B','D','E')),
             rel_heights = c(1, 1),nrow=2,ncol=1)
   ggsave(paste0(hndl.out,"Paper figures/Figure 2.jpg"),width = 9,height = 6) 
   
