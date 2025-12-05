@@ -1994,18 +1994,33 @@ if(do.regulations.info)
                   Oz.MPAs$MPA.coverage.heavily.or.most.restricted,'% of total marine area)')
   Oz.kol='darkgreen'
   p.MPA.global=Global.MPAs%>%
-          ggplot(aes(MPA.surface,fill=OZ))+
-          geom_histogram(bins=50,show.legend = FALSE)+
-          theme_PA(axs.t.siz=8,axs.T.siz=12)+
-          theme(axis.title.y = element_text(margin = margin(t = 0)),
-                axis.title.x = element_text(margin = margin(t = 0)))+
-          labs(x = expression(paste("Total surface of MPA network by country (", km^2,')')))+
-          ylab('Frequency')+
-          scale_x_continuous(labels = scales::comma)+
-          scale_fill_manual(values = c(Australia=Oz.kol,Other='grey60'))+
-          geom_text(x=1.8e6,y=47,label='Australia',size=5,fontface = "bold",color=Oz.kol,hjust = 0)+
-          geom_text_repel(data=Oz.MPAs,aes(x=MPA.surface),y=0,label=OZ.label,hjust = 0,
-                          nudge_y = 10,force = 2,box.padding = 2,color=Oz.kol,size=3.5)
+    ggplot(aes(MPA.surface,fill=OZ))+
+    geom_histogram(bins=50,show.legend = FALSE)+
+    theme_PA(axs.t.siz=8,axs.T.siz=12)+
+    theme(axis.title.y = element_text(margin = margin(t = 0)),
+          axis.title.x = element_text(margin = margin(t = 0)))+
+    labs(x = expression(paste("Total surface of MPA network by country (", km^2,')')))+
+    ylab('Frequency')+
+    scale_x_continuous(labels = scales::comma)+
+    scale_fill_manual(values = c(Australia=Oz.kol,Other='grey60'))+
+    geom_text(x=0.4e6,y=40,label='Australia',size=4,fontface = "bold",color=Oz.kol,hjust = 0)+
+    geom_text_repel(data=Oz.MPAs,aes(x=MPA.surface),y=0,label=OZ.label,hjust = 0,
+                    nudge_y = 10,force = 2,box.padding = 2,color=Oz.kol,size=3.5)
+  
+  p.MPA.inset=Global.MPAs%>%
+    ggplot(aes(MPA.coverage.WDPA,fill=OZ))+
+    geom_histogram(bins=50,show.legend = FALSE)+
+    theme_PA(axs.t.siz=8,axs.T.siz=10)+
+    theme(axis.title.y = element_text(margin = margin(t = 0)),
+          axis.title.x = element_text(margin = margin(t = 0)))+
+    labs(x = "Percentage of total marine area")+
+    ylab('')+
+    scale_fill_manual(values = c(Australia=Oz.kol,Other='grey60'))+
+    scale_y_continuous(trans = 'pseudo_log') 
+  
+  p.MPA.global=ggdraw() +
+    draw_plot(p.MPA.global)+
+    draw_plot(p.MPA.inset, x = 0.425, y = 0.425, width = .54, height = .54)
   
   #4.2 WA sharks closures and MPAs 
   Map.hndl=handl_OneDrive("Data/Mapping/")
@@ -2042,7 +2057,7 @@ if(do.regulations.info)
                   theme(legend.margin=margin(0,0,0,0),
                         legend.box.margin=margin(-10,-10,-10,-10))
                 
-  #Combine plots #ACA
+  #Combine plots 
   plot_grid(plot_grid(p_KDE,p.MPA.global,ncol=2,labels=c('A','C')),
             plot_grid(p_status,p_Oz.leg,p_sp.squiz,ncol=3,nrow=1,
                       rel_widths = c(1,1,.8),labels=c('B','D','E')),
