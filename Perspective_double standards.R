@@ -562,6 +562,7 @@ fn.map=function(Limx, Limy, Depth.data,add.depth,SEQ,add.parks,NRW.leg,
       geom_sf(data = Park_Lalang.Garram.Camden.Sound,fill=State.col,alpha=alpha.parks)+
       geom_sf(data = Park_Northern.Kimberley,fill=State.col,alpha=alpha.parks)+
       geom_sf(data = Park_Yawuru.Roebuck,fill=State.col,alpha=alpha.parks)+
+      geom_sf(data = SCMP,fill=State.col,alpha=alpha.parks)+
       coord_sf(xlim =Limx , ylim = Limy, expand = T)
     
     #get legend
@@ -2045,6 +2046,7 @@ if(do.regulations.info)
   Park_Northwest.AMP.Network=st_read(paste0(Map.hndl,"park boundaries/Northwest AMP Network/NorthWestAMPNetwork.shp"))
   Park_WA_Commonwealth_Marine_Parks=st_read(paste0(Map.hndl,"park boundaries/WA_Commonwealth_Marine_Parks/WA_Commonwealth_Marine_Parks.shp"))
   Park_Yawuru.Roebuck=st_read(paste0(Map.hndl,"park boundaries/Yawuru Roebuck/pmcr-rbmp-zoning-hwm_kim_20160830.shp"))
+  SCMP = st_read(paste0(Map.hndl,"South Coast Marine Park/SCMPs_StateMPsandReserves_20251111.shp"))
   
   #plot map with marine parks
   p_sp.squiz=fn.map(Limx=c(110,130), Limy=c(-38,-13), 
