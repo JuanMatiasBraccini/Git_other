@@ -2066,5 +2066,18 @@ if(do.regulations.info)
             rel_heights = c(1, 1),nrow=2,ncol=1)
   ggsave(paste0(hndl.out,"Paper figures/Figure 2.jpg"),width = 9,height = 6) 
   
+  
+  #Calculate surface area of closures
+  Metro=Shark_Fishery_Closures%>%filter(NAME=='West Coast Demersal Gillnet & Demersal Longline Interim Managed Fishery Management Plan 1997')
+  NC1=Shark_Fishery_Closures%>%filter(NAME=='North Coast Shark Fishing (Professional) Notice 1993')
+  NC2=Shark_Fishery_Closures%>%filter(NAME=='North West Coast Shark Fishing (Professional) Gear Prohibition Notice 1993')
+    Metro.surface=st_area(Metro)
+  NC1.surface=st_area(NC1)
+  NC2.surface=st_area(NC2)
+  ASL.surface= st_area(ASL_Closures)
+  ASL2.surface= st_area(ASL_Closures2)
+    Total.closure_km2=as.numeric(Metro.surface[1]/1e6+NC1.surface[1]/1e6+NC2.surface[1]/1e6+
+                                 ASL.surface[1]/1e6+ASL2.surface[1]/1e6)
+  
 
 }
