@@ -2003,10 +2003,7 @@ if(do.regulations.info)
     labs(x = expression(paste("Total surface of MPA network by country (", km^2,')')))+
     ylab('Frequency')+
     scale_x_continuous(labels = scales::comma)+
-    scale_fill_manual(values = c(Australia=Oz.kol,Other='grey60'))+
-    geom_text(x=0.4e6,y=40,label='Australia',size=4,fontface = "bold",color=Oz.kol,hjust = 0)+
-    geom_text_repel(data=Oz.MPAs,aes(x=MPA.surface),y=0,label=OZ.label,hjust = 0,
-                    nudge_y = 10,force = 2,box.padding = 2,color=Oz.kol,size=3.5)
+    scale_fill_manual(values = c(Australia=Oz.kol,Other='grey60'))
   
   p.MPA.inset=Global.MPAs%>%
     ggplot(aes(MPA.coverage.WDPA,fill=OZ))+
@@ -2019,8 +2016,11 @@ if(do.regulations.info)
     scale_fill_manual(values = c(Australia=Oz.kol,Other='grey60'))+
     scale_y_continuous(trans = 'pseudo_log') 
   
-  p.MPA.global=ggdraw() +
-    draw_plot(p.MPA.global)+
+  p.MPA.global_1=ggdraw() +
+    draw_plot(p.MPA.global+
+                geom_text(x=0.4e6,y=40,label='Australia',size=4,fontface = "bold",color=Oz.kol,hjust = 0)+
+                geom_text_repel(data=Oz.MPAs,aes(x=MPA.surface),y=0,label=OZ.label,hjust = 0,
+                                nudge_y = 10,force = 2,box.padding = 2,color=Oz.kol,size=3.5))+
     draw_plot(p.MPA.inset, x = 0.425, y = 0.425, width = .54, height = .54)
   
   #4.2 WA sharks closures and MPAs 
@@ -2060,11 +2060,27 @@ if(do.regulations.info)
                         legend.box.margin=margin(-10,-10,-10,-10))
                 
   #Combine plots 
-  plot_grid(plot_grid(p_KDE,p.MPA.global,ncol=2,labels=c('A','C')),
+  plot_grid(plot_grid(p_KDE,p.MPA.global_1,ncol=2,labels=c('A','C')),
             plot_grid(p_status,p_Oz.leg,p_sp.squiz,ncol=3,nrow=1,
                       rel_widths = c(1,1,.8),labels=c('B','D','E')),
             rel_heights = c(1, 1),nrow=2,ncol=1)
   ggsave(paste0(hndl.out,"Paper figures/Figure 2.jpg"),width = 9,height = 6) 
+  
+  OZ.label_2=paste0('4.6 M (',Oz.MPAs$MPA.coverage.WDPA,
+                     '% of total marine area,\n            ',
+                     Oz.MPAs$MPA.coverage.heavily.or.most.restricted,'% no take)')
+  
+  p.MPA.global_2=ggdraw() +
+    draw_plot(p.MPA.global+
+                geom_text(x=3.15e6,y=45,label='Australia',size=6,fontface = "bold",color=Oz.kol,hjust = 0)+
+                geom_text_repel(data=Oz.MPAs,aes(x=MPA.surface),y=0,label=OZ.label_2,hjust = 1,
+                                force = 5,box.padding = 1.5,color=Oz.kol,size=4))+
+    draw_plot(p.MPA.inset, x = 0.15, y = 0.325, width = .5, height = .6)
+  
+  plot_grid(plot_grid(p_KDE,p_status,ncol=2,
+                      labels=c('A','B','C'),rel_widths = c(1,.8)),  #ACA
+            p.MPA.global_2,nrow=2,labels=c('A','C'))
+  ggsave(paste0(hndl.out,"Paper figures/Figure 2_censored.jpg"),width = 8,height = 6) 
   
   
   #Calculate surface area of closures
@@ -2079,5 +2095,7 @@ if(do.regulations.info)
     Total.closure_km2=as.numeric(Metro.surface[1]/1e6+NC1.surface[1]/1e6+NC2.surface[1]/1e6+
                                  ASL.surface[1]/1e6+ASL2.surface[1]/1e6)
   
-
+  
+    SCMP.surface_km2=sum(st_area(SCMP)/1e6)
+    
 }
