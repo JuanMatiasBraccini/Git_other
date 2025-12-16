@@ -232,6 +232,9 @@ function.chronology.pop.growth.timeline=function(d,Labls,lbl.width,start.year,en
                                                  Arrow.width,Max.ovrlp,add.arrow,Topic.kls,
                                                  SEQ,lbls.klr.blk=TRUE,kl.tick='grey20')
 {
+  N.periods=length(SEQ)-1
+  Kls=colfunc(N.periods)
+  
   #base map
   p=d%>%
     ggplot(aes(Year,Total))+
@@ -249,12 +252,10 @@ function.chronology.pop.growth.timeline=function(d,Labls,lbl.width,start.year,en
           panel.grid.major.y = element_line(color=kl.tick),
           panel.grid.minor.x = element_line(linetype = "dotted", color = "gray"), #,linetype = 3
           panel.grid.minor.y = element_blank())
-  if(!add.arrow)  p=p+geom_line(linewidth=ln.width,color='slategray1')
+  if(!add.arrow)  p=p+geom_line(linewidth=ln.width,color=Kls[length(Kls)-1]) #'slategray1'
   if(add.arrow) p=p+geom_line(linewidth=ln.width,color=Kls[length(Kls)],arrow = arrow(type = "open",length=unit(Arrow.width, "npc")))
   
   #color code periods
-  N.periods=length(SEQ)-1
-  Kls=colfunc(N.periods)
   for(s in 1:N.periods)
   {
     p=p+
@@ -305,6 +306,30 @@ function.chronology.pop.growth.timeline=function(d,Labls,lbl.width,start.year,en
   return(p)
 }
 
+fun.pie=function(data,Xmax,Xmin,Fill.kl,ALfa)
+{
+  data$fraction = data$count / sum(data$count)
+  
+  # Compute the cumulative percentages (top of each rectangle)
+  data$ymax = cumsum(data$fraction)
+  
+  # Compute the bottom of each rectangle
+  data$ymin = c(0, head(data$ymax, n=-1))
+  # Compute label position
+  data$labelPosition <- (data$ymax + data$ymin) / 2
+  
+  # Compute a good label
+  data$label <- paste0(data$category, "\n value: ", data$count)
+  p=ggplot(data, aes(ymax=ymax, ymin=ymin, xmax=Xmax, xmin=Xmin, fill=category)) +
+    geom_rect(color=1,alpha=ALfa) +
+    scale_fill_manual(values=Fill.kl) +
+    coord_polar(theta="y") +
+    xlim(c(2, 4)) +
+    theme_void() +
+    theme(legend.position = "none")
+  return(p)
+  
+}
 
 # Chronology population growth-----------------------------------------------------------
 Start.Fisheries.Department=1893
@@ -461,9 +486,6 @@ topic.kls=c("black","darkolivegreen4","darkorange3","brown4","darkslategray3","a
             "chartreuse3","antiquewhite4","red")
 names(topic.kls)=c("Recreational","Assessment","Commercial","Monitoring","Population","Indigenous",
                    "No topic","Management","Department")
-
-   
-#ACA
 p=function.chronology.pop.growth.timeline(d=WA.population,
                                           Labls=Chronology,
                                           lbl.width=45,
@@ -481,36 +503,12 @@ p=function.chronology.pop.growth.timeline(d=WA.population,
                                           Max.ovrlp=100, #Max.ovrlp=Inf
                                           add.arrow=FALSE,
                                           Topic.kls=topic.kls,
-                                          SEQ=seq(Start.chronos,2025,by=25),
+                                          SEQ=seq(Start.chronos,2025,by=20),
                                           lbls.klr.blk=TRUE,   #FALSE for colored by topic
                                           kl.tick='grey65')  #'tan4'
 
 
 #total catch pie chart
-fun.pie=function(data,Xmax,Xmin,Fill.kl,ALfa)
-{
-  data$fraction = data$count / sum(data$count)
-  
-  # Compute the cumulative percentages (top of each rectangle)
-  data$ymax = cumsum(data$fraction)
-  
-  # Compute the bottom of each rectangle
-  data$ymin = c(0, head(data$ymax, n=-1))
-  # Compute label position
-  data$labelPosition <- (data$ymax + data$ymin) / 2
-  
-  # Compute a good label
-  data$label <- paste0(data$category, "\n value: ", data$count)
-  p=ggplot(data, aes(ymax=ymax, ymin=ymin, xmax=Xmax, xmin=Xmin, fill=category)) +
-    geom_rect(color=1,alpha=ALfa) +
-    scale_fill_manual(values=Fill.kl) +
-    coord_polar(theta="y") +
-    xlim(c(2, 4)) +
-    theme_void() +
-    theme(legend.position = "none")
-  return(p)
-  
-}
 XMAX=4
 XMIN=3
 Spec.kols=c('tomato3','sienna','thistle2','olivedrab','khaki3','peru','violetred4','lightcoral','grey60')
@@ -547,7 +545,7 @@ for(i in 1:length(Sp.shape))
 #Combine all
 ggdraw(p) +
   draw_plot(p_inset, x = 0.025, y = 0.4, width = 0.4, height = 0.58) 
-ggsave(paste0(hndl.out,"Chronology_pop.growth_v1.jpg"),width = 8,height = 6)
+ggsave(paste0(hndl.out,"Chronology_pop.growth_v1.jpg"),width = 8,height = 6)  
 
 ggdraw(p) +
   draw_plot(p_inset, x = 0.025, y = 0.4, width = 0.4, height = 0.58) +

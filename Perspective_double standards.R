@@ -1581,6 +1581,22 @@ if(do.production.info)
   print(p.sankey.all)
   ggsave(paste0(hndl.out,"Sankeys/Current imports_1.combined_facet.jpg"),width = 8,height = 6)
   
+  
+  #Calculate percentage of imports from countries with lower standards
+  Current.Prop.imports.lower_standards=dummy_group%>%
+                      filter(Year==Yr.list[length(Yr.list)] & TradeFlow=='Imports')%>%
+                      group_by(Country)%>%
+                      summarise(Quantity_tonnes=sum(Quantity_tonnes,na.rm=T))%>%
+                      ungroup()%>%
+                      left_join(Performance.indices%>%dplyr::select(Country,Risk),
+                                by='Country')%>%
+                      filter(!is.na(Risk))%>%
+                      group_by(Risk)%>%
+                      summarise(Quantity_tonnes=sum(Quantity_tonnes))
+  
+  Percent.lower_standards=100*sum(Current.Prop.imports.lower_standards%>%filter(Risk%in%c('High','Severe'))%>%pull(Quantity_tonnes))/
+    sum(Current.Prop.imports.lower_standards$Quantity_tonnes)
+  
 }
 
   
@@ -2078,7 +2094,7 @@ if(do.regulations.info)
     draw_plot(p.MPA.inset, x = 0.15, y = 0.325, width = .5, height = .6)
   
   plot_grid(plot_grid(p_KDE,p_status,ncol=2,
-                      labels=c('A','B','C'),rel_widths = c(1,.8)),  #ACA
+                      labels=c('A','B','C'),rel_widths = c(1,.8)),  
             p.MPA.global_2,nrow=2,labels=c('A','C'))
   ggsave(paste0(hndl.out,"Paper figures/Figure 2_censored.jpg"),width = 8,height = 6) 
   
