@@ -238,7 +238,7 @@ function.chronology.pop.growth.timeline=function(d,Labls,lbl.width,start.year,en
   #base map
   p=d%>%
     ggplot(aes(Year,Total))+
-    labs(caption = 'Source: ABS Historical Population Statistics')+
+    labs(caption = 'Source: Australian Bureau of Statistics Estimated Resident Population')+
     scale_x_date(name = "",
                  date_minor_breaks='5 year',
                  breaks = as.Date(paste0(SEQ,'-01-01')),
@@ -303,6 +303,9 @@ function.chronology.pop.growth.timeline=function(d,Labls,lbl.width,start.year,en
                                          hjust = h, vjust=v),size=lbl.size,
                 show.legend = FALSE)
   }
+  
+  #change axis color
+  p=p+theme(axis.text = element_text(face="bold",colour = Kls[length(Kls)]))
   return(p)
 }
 
@@ -494,10 +497,10 @@ p=function.chronology.pop.growth.timeline(d=WA.population,
                                           Nudge_y=5,
                                           Nudge_x = 5,
                                           Point.padding = 1.5,  #1
-                                          Box.padding = .65, #.5
+                                          Box.padding = .4, #.5
                                           Force=1.5,
                                           text.labelling='repel',
-                                          lbl.size=3.5, #2.8
+                                          lbl.size=2.55, #2.8
                                           ln.width=10,
                                           Arrow.width=.125,
                                           Max.ovrlp=100, #Max.ovrlp=Inf
@@ -544,8 +547,8 @@ for(i in 1:length(Sp.shape))
 
 #Combine all
 ggdraw(p) +
-  draw_plot(p_inset, x = 0.025, y = 0.4, width = 0.4, height = 0.58) 
-ggsave(paste0(hndl.out,"Chronology_pop.growth_v1.jpg"),width = 8,height = 6)  
+  draw_plot(p_inset, x = 0.08, y = 0.5, width = 0.355, height = 0.5) 
+ggsave(paste0(hndl.out,"Chronology_pop.growth_v1.jpg"),width = 170,height = 127,units='mm', dpi = 1200) 
 
 ggdraw(p) +
   draw_plot(p_inset, x = 0.025, y = 0.4, width = 0.4, height = 0.58) +
