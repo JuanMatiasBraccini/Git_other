@@ -496,8 +496,8 @@ p=function.chronology.pop.growth.timeline(d=WA.population,
                                           end.year=2025,
                                           Nudge_y=5,
                                           Nudge_x = 5,
-                                          Point.padding = 1.5,  #1
-                                          Box.padding = .4, #.5
+                                          Point.padding = 0,  #1
+                                          Box.padding = .495, #.5
                                           Force=1.5,
                                           text.labelling='repel',
                                           lbl.size=2.55, #2.8
@@ -547,7 +547,7 @@ for(i in 1:length(Sp.shape))
 
 #Combine all
 ggdraw(p) +
-  draw_plot(p_inset, x = 0.08, y = 0.5, width = 0.355, height = 0.5) 
+  draw_plot(p_inset, x = 0.08, y = 0.5, width = 0.34, height = 0.5) 
 ggsave(paste0(hndl.out,"Chronology_pop.growth_v1.jpg"),width = 170,height = 127,units='mm', dpi = 1200) 
 
 ggdraw(p) +
