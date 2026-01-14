@@ -179,7 +179,11 @@ Tagging=Tagging%>%
 #Tag type
 Tagging=Tagging%>%
   dplyr::rename(Recaptured="Captured?")%>%
-        mutate(CONDITION=ifelse(CONDITION=="?",NA,CONDITION),
+        mutate(Recaptured=ifelse(!is.na(CAPT_METHD),'Y',Recaptured),
+               Recaptured=case_when(is.na(CAPT_METHD) & (!is.na(CAP_LATD) | !is.na(CAP_LNGD))~'Y',
+                                    is.na(CAPT_METHD) & (!is.na(year(DATE_CAPTR)) | !is.na(month(DATE_CAPTR)))~'Y',  
+                                    TRUE~Recaptured),
+               CONDITION=ifelse(CONDITION=="?",NA,CONDITION),
                Tag.type=case_when(!is.na(ATAG.NO)~'acoustic',
                                   !is.na(DARTTAGNO) & is.na(Tag.no)~'conventional.dart',
                                   TRUE~'conventional'))%>%
@@ -199,7 +203,7 @@ Tagging=Tagging%>%
                               CAPT_METHD=='LL' & !CAPTVESS %in% tolower(Res.ves) ~"Commercial longline",
                               CAPT_METHD=='GN' & CAPTVESS %in% tolower(Res.ves) ~"Research gillnet",
                               CAPT_METHD=='GN' & !CAPTVESS %in% tolower(Res.ves) ~"Commercial gillnet",
-                              !CAPT_METHD%in%c("LL","GN") ~"Other"),
+                              !CAPT_METHD%in%c("LL","GN") & !is.na(CAPT_METHD)~"Other"),
          Rec.method=ifelse(is.na(Recaptured),NA,Rec.method))%>%
   left_join(Boat_hdr%>%dplyr::select(SHEET_NO,Method,BOAT),by='SHEET_NO')%>%
   mutate(Rel.method=case_when(Method=='LL' & !BOAT%in%Res.ves~"Commercial longline",
@@ -234,8 +238,18 @@ Boat_bio=Boat_bio%>%
         mutate(Tag.no=tolower(Tag.no))%>%
         dplyr::rename(SHEET_NO_Boat_bio=SHEET_NO)
 
-Tagging=full_join(Tagging,subset(Boat_bio,select=c(SHEET_NO_Boat_bio,SPECIES,TL,FL,Tag.no,
-                                                   Tag.type2,CONDITION_Boat_bio,SEX_Boat_bio)),
+#fix some duplicated tag numbers
+Tagging=Tagging%>%
+  mutate(Tag.no=case_when(Tag.no=='1284' & SPECIES=='MI'~'dart6078',
+                          Tag.no=='a175a' & SPECIES=='GM'~'A29506',
+                          Tag.no=='d0203' & SHEET_NO=='w00124'~'D0203_1',
+                          TRUE~Tag.no))
+
+Tagging=full_join(Tagging,Boat_bio%>%
+                    mutate(SP.tg=paste(SPECIES,Tag.no))%>%
+                    filter(SP.tg%in%unique(paste(Tagging$SPECIES,Tagging$Tag.no)))%>%
+                    dplyr:::select(SHEET_NO_Boat_bio,SPECIES,TL,FL,Tag.no,
+                                   Tag.type2,CONDITION_Boat_bio,SEX_Boat_bio),
                   by=c("SPECIES","Tag.no","FL"))%>%
             mutate(FL=ifelse(is.na(FL) & !is.na(TL) & !SPECIES%in%TL.species,TL*.85,FL),
                    FL=ifelse(SPECIES%in%TL.species,TL,FL),
@@ -244,6 +258,12 @@ Tagging=full_join(Tagging,subset(Boat_bio,select=c(SHEET_NO_Boat_bio,SPECIES,TL,
         mutate(SHEET_NO=ifelse(is.na(SHEET_NO),SHEET_NO_Boat_bio,SHEET_NO),
                CONDITION=ifelse(is.na(CONDITION),CONDITION_Boat_bio,CONDITION),
                SEX=ifelse(is.na(SEX),SEX_Boat_bio,SEX))
+dd=table(Tagging$Tag.no)
+dd=subset(dd,dd>1)
+Tagging=Tagging%>%
+          mutate(drop.dup=ifelse(Tag.no %in% names(dd) & is.na(RELEASE.DATE),'yes','no'))%>%
+          filter(drop.dup=='no')%>%
+          dplyr::select(-drop.dup)
 Tagging=Tagging[!duplicated(Tagging$Tag.no),]
 
 Gear1=Gear%>%
@@ -343,17 +363,17 @@ Tagging=Tagging%>%
                    dummy.Lat.rec=ifelse(is.na(Lat.rec),1,abs(Lat.rec)),
                    dummy.Long.rec=ifelse(is.na(Long.rec),1,Long.rec),
                    dummy=dummy.CAP_FL*dummy.Day.rec*dummy.Mn.rec*dummy.Yr.rec*dummy.Lat.rec*dummy.Long.rec,
-                   Recaptured=ifelse(Recaptured=="YES" & dummy<=1,"NO",Recaptured),
+                   #Recaptured=ifelse(Recaptured=="YES" & dummy<=1,"NO",Recaptured),  
                    Lat.rec=ifelse(Recaptured=="NO",NA,Lat.rec),
                    Long.rec=ifelse(Recaptured=="NO",NA,Long.rec),
                    Long.rels=ifelse(SHEET_NO=='R00863',112.7868,
-                                    ifelse(SHEET_NO=='Q00241',122.6462,
-                                           ifelse(SHEET_NO=='Q00654',118.4068,
-                                                  Long.rels))),
+                             ifelse(SHEET_NO=='Q00241',122.6462,
+                             ifelse(SHEET_NO=='Q00654',118.4068,
+                             Long.rels))),
                    Lat.rels=ifelse(SHEET_NO=='M00087',-23.06767,
-                                   ifelse(SHEET_NO=='Q00241',-33.89615,
-                                          ifelse(SHEET_NO=='Q00654',-34.82442,
-                                                 Lat.rels))),
+                            ifelse(SHEET_NO=='Q00241',-33.89615,
+                            ifelse(SHEET_NO=='Q00654',-34.82442,
+                            Lat.rels))),
                    Recaptured=capitalize(tolower(Recaptured)))%>%
             dplyr::select(-c(dummy,dummy.CAP_FL,dummy.Day.rec,dummy.Mn.rec,dummy.Yr.rec,dummy.Lat.rec,dummy.Long.rec))
 
