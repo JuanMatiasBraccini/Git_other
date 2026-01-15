@@ -35,9 +35,9 @@ Tagging=Tagging[!duplicated(Tagging$"Tag no"),]
 
 if(!exists('handl_OneDrive')) source('C:/Users/myb/OneDrive - Department of Primary Industries and Regional Development/Matias/Analyses/SOURCE_SCRIPTS/Git_other/handl_OneDrive.R')
 
+
+
 setwd(handl_OneDrive("Data/Tagging/Conventional_tagging"))
-
-
 Tagging.check=read.csv(handl_OneDrive("Data/Tagging/Conventional_tagging/Boat_bio tag releases.csv"))
 
 #Gummy shark
@@ -101,36 +101,39 @@ b.w=8.891; a.w=1.046  #total to fork length (used the inverse of whiskery as no 
 b.g=4.6424; a.g=1.08
 Gummy$FL=round(((Gummy$TLRl-b.g)/a.g)/10)
 Gummy$CAP_FL=round(((Gummy$TLRc-b.g)/a.g)/10)
-
-Gummy$CAPT_METHD=Gummy$GrRc
-Gummy$CAPT_METHD=with(Gummy,ifelse(CAPT_METHD==1,"LL",ifelse(CAPT_METHD==2,"GN",
-          ifelse(CAPT_METHD==6,"OT",ifelse(CAPT_METHD==13,"HL",ifelse(CAPT_METHD==16,"?","other"))))))
+Terry.gear.code=data.frame(GrRl=1:16,
+                           GrRc=1:16,
+                           Method=c("LL","GN","non-shark monfilament","GN",
+                                    'Tassie graball net','OT','Danish seine',
+                                    'PT','Snapper LL','Trotline','DL','Troll',
+                                    'HL','Lobster pot','Fish trap','Unknown'))
+Gummy=Gummy%>%
+      left_join(Terry.gear.code%>%dplyr::select(GrRc,Method)%>%rename(CAPT_METHD=Method),
+                by='GrRc')%>%
+      left_join(Terry.gear.code%>%dplyr::select(GrRl,Method),
+                by='GrRl')
 
 Gummy$"ATAG.NO"=NA
-
 Gummy$Lat.rec=-Gummy$LatRc
 Gummy$Long.rec=Gummy$LonRc
 Gummy$Lat.rels=-Gummy$LatRl
 Gummy$Long.rels=Gummy$LonRl
-
 Gummy$Tag.type="conventional"
-
-Gummy$Method=Gummy$CAPT_METHD
 Gummy$BOTDEPTH=NA
 Gummy$BOAT=NA
 
 
 #release and recapture methods 
 Gummy=Gummy%>%
-  mutate(Rec.method=ifelse(CAPT_METHD=="GN","Commercial gillnet",
+  mutate(DARTTAGNO=NA,
+         Rec.method=ifelse(CAPT_METHD=="GN","Commercial gillnet",
                     ifelse(CAPT_METHD=="LL","Commercial longline",
                     ifelse(!CAPT_METHD%in%c("LL","GN"),"Other",
                     NA))),
-         Rel.method=ifelse(GrRl==2,"Commercial gillnet",
-                    ifelse(GrRl==1,"Commercial longline",
-                    ifelse(!GrRl%in%c(1,2),"Other",
+         Rel.method=ifelse(Method=='LL',"Commercial longline",
+                    ifelse(Method=='GN',"Commercial gillnet",
+                    ifelse(!Method%in%c('LL','GN'),"Other",
                     NA))))
-
 
 #add missing records
 ind=which(is.na(match(Tagging.check$"FINTAG NO",Tagging$FINTAGNO))==T)
@@ -198,20 +201,32 @@ Tagging=Tagging%>%
 #release and recapture methods 
 Res.ves=c('HAM','HOU','NAT','RV BREAKSEA','RV Gannet','RV GANNET','RV SNIPE 2','FLIN','naturaliste')
 Tagging=Tagging%>%
-  mutate(CAPTVESS=tolower(CAPTVESS),
-         Rec.method=case_when(CAPT_METHD%in%c('LL','HK') & CAPTVESS %in% tolower(Res.ves) ~"Research longline",
-                              CAPT_METHD=='LL' & !CAPTVESS %in% tolower(Res.ves) ~"Commercial longline",
-                              CAPT_METHD=='GN' & CAPTVESS %in% tolower(Res.ves) ~"Research gillnet",
-                              CAPT_METHD=='GN' & !CAPTVESS %in% tolower(Res.ves) ~"Commercial gillnet",
-                              !CAPT_METHD%in%c("LL","GN") & !is.na(CAPT_METHD)~"Other"),
-         Rec.method=ifelse(is.na(Recaptured),NA,Rec.method))%>%
-  left_join(Boat_hdr%>%dplyr::select(SHEET_NO,Method,BOAT),by='SHEET_NO')%>%
-  mutate(Rel.method=case_when(Method=='LL' & !BOAT%in%Res.ves~"Commercial longline",
-                              Method=='LL' &  BOAT%in%Res.ves~"Research longline",
-                              Method=='GN' &  BOAT%in%Res.ves~"Research gillnet",
-                              Method=='GN' & !BOAT%in%Res.ves~"Commercial gillnet",
-                              TRUE~"Other"))
+        mutate(CAPTVESS=tolower(CAPTVESS),
+               Rec.method=case_when(CAPT_METHD%in%c('LL','HK') & CAPTVESS %in% tolower(Res.ves) ~"Research longline",
+                                    CAPT_METHD=='LL' & !CAPTVESS %in% tolower(Res.ves) ~"Commercial longline",
+                                    CAPT_METHD=='GN' & CAPTVESS %in% tolower(Res.ves) ~"Research gillnet",
+                                    CAPT_METHD=='GN' & !CAPTVESS %in% tolower(Res.ves) ~"Commercial gillnet",
+                                    !CAPT_METHD%in%c("LL","GN") & !is.na(CAPT_METHD)~"Other"),
+               Rec.method=ifelse(is.na(Recaptured),NA,Rec.method))%>%
+        left_join(Boat_hdr%>%dplyr::select(SHEET_NO,Method,BOAT),by='SHEET_NO')
 
+  #fill in missing capture method and boat for tagging SHEET_NO not in Boat_hdr 
+Tagging=Tagging%>%
+  mutate(RELLATDECDEG=case_when(is.na(RELLATDECDEG) & SHEET_NO=='r01065' ~19.97,
+                                is.na(RELLATDECDEG) & SHEET_NO=='t05015' ~32.015,
+                                TRUE~RELLATDECDEG),
+         RELLNGDECDEG=case_when(is.na(RELLNGDECDEG) & SHEET_NO=='r01065' ~119.79,
+                                is.na(RELLNGDECDEG) & SHEET_NO=='t05015' ~128.63,
+                                TRUE~RELLNGDECDEG),
+         Method=case_when(is.na(Method) & SHEET_NO%in% c("r01066","r01067","r01068","r01070")~'GN',
+                          is.na(Method) & grepl('t0',SHEET_NO)~'GN',
+                          TRUE~Method),
+         BOAT=case_when(is.na(BOAT) & SHEET_NO%in% c("r01066","r01067","r01068","r01070")~'some unkwn commercial',
+                        is.na(BOAT) & grepl('t0',SHEET_NO)~'some unkwn commercial',
+                        TRUE~BOAT),
+         RELEASE.DATE=case_when(is.na(RELEASE.DATE) & SHEET_NO%in%c('t00434','t00435') ~ as.POSIXct('1999-02-25'),
+                               is.na(RELEASE.DATE) & SHEET_NO%in%c('t03048') ~ as.POSIXct('1998-03-26'),
+                               TRUE~RELEASE.DATE))
 
 #Add TL to species where TL is measured but not FL and any tagging event not in Tagging
 #note: The Tag data table in Shark.mdb got some what corrupted and is not capturing all tagging event post 2016
@@ -245,7 +260,8 @@ Tagging=Tagging%>%
                           Tag.no=='d0203' & SHEET_NO=='w00124'~'D0203_1',
                           TRUE~Tag.no))
 
-Tagging=full_join(Tagging,Boat_bio%>%
+Tagging=full_join(Tagging,
+                  Boat_bio%>%
                     mutate(SP.tg=paste(SPECIES,Tag.no))%>%
                     filter(SP.tg%in%unique(paste(Tagging$SPECIES,Tagging$Tag.no)))%>%
                     dplyr:::select(SHEET_NO_Boat_bio,SPECIES,TL,FL,Tag.no,
@@ -277,11 +293,21 @@ Gear1=Gear%>%
                MID.LONG_hdr=MID.LONG)%>%  
         mutate(Day.rel_hdr=day(DATE_hdr),    
                Mn.rel_hdr=month(DATE_hdr),
-               Yr.rel_hdr=year(DATE_hdr))
+               Yr.rel_hdr=year(DATE_hdr)) 
   
-Tagging=Tagging%>%left_join(Gear1,by='SHEET_NO') 
+Tagging=Tagging%>%
+            left_join(Gear1,by='SHEET_NO')%>%
+            mutate(BOAT_hdr=ifelse(is.na(BOAT_hdr) & !is.na(BOAT), BOAT, BOAT_hdr),
+                   Method_hdr=ifelse(is.na(Method_hdr) & !is.na(Method), Method, Method_hdr))
 
 
+#Add Rel.method
+Tagging=Tagging%>%
+  mutate(Rel.method=case_when(Method=='LL' & !BOAT%in%Res.ves~"Commercial longline",
+                              Method=='LL' &  BOAT%in%Res.ves~"Research longline",
+                              Method=='GN' &  BOAT%in%Res.ves~"Research gillnet",
+                              Method=='GN' & !BOAT%in%Res.ves~"Commercial gillnet",
+                              TRUE~"Other"))
 
 #check for duplicates   
 Tagging$Unico=with(Tagging,paste(Tag.no,SPECIES,FL))
@@ -342,8 +368,7 @@ Tagging=Tagging[,-match(Drop.this,names(Tagging))]
 
 
 
-#add gummy tagging data
-Gummy$DARTTAGNO=NA
+#add gummy tagging data 
 Tagging=rbind(Tagging,Gummy[,match(names(Tagging),names(Gummy))])
 
 
@@ -413,14 +438,6 @@ Tagging=Tagging%>%
          Recaptured=case_when(Tag.no=='d3254' & Recaptured=='No'~'Yes',
                               TRUE~Recaptured))
 
-#Reset Rel.method
-Tagging=Tagging%>%
-  mutate(Rel.method=case_when(Method=='LL' & !BOAT%in%Res.ves~"Commercial longline",
-                              Method=='LL' &  BOAT%in%Res.ves~"Research longline",
-                              Method=='GN' &  BOAT%in%Res.ves~"Research gillnet",
-                              Method=='GN' & !BOAT%in%Res.ves~"Commercial gillnet",
-                              TRUE~"Other"))
-
 #Create useful variables
 
 #areas
@@ -433,8 +450,6 @@ Tagging$Areas=with(Tagging,ifelse(Lat.rels<=(-26.5) & Lat.rels>=(-33) & Long.rel
                     ifelse(Lat.rels>=(-26.5) & Long.rels <=114,eachArea[4],       
                     NA)))))))
 Tagging$Areas=with(Tagging,ifelse(Lat.rels<=(-29) & Long.rels >129,"SA",Areas))
-
-
 Tagging$Areas.rec=with(Tagging,ifelse(Lat.rec<=(-26.5) & Lat.rec>=(-33) & Long.rec <=116,eachArea[3],
                       ifelse(Lat.rec<(-33) & Lat.rec>=(-41) & Long.rec <=116.5,eachArea[2],
                       ifelse(Lat.rec<(-31) & Lat.rec>=(-41) & Long.rec >116.5,eachArea[1],
