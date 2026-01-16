@@ -501,7 +501,8 @@ Tagging=Tagging%>%
             dplyr::select(-c(dummy,dummy.CAP_FL,dummy.Day.rec,dummy.Mn.rec,dummy.Yr.rec,dummy.Lat.rec,dummy.Long.rec))
 
 Tagging=Tagging%>%
-  mutate(Rec.method=ifelse(!is.na(Rec.method) & Recaptured=='No',NA,Rec.method))
+  mutate(CAPT_METHD=ifelse(!is.na(CAPT_METHD) & Recaptured=='No',NA,CAPT_METHD),
+         Rec.method=ifelse(!is.na(Rec.method) & Recaptured=='No',NA,Rec.method))
 
 #fix species names
 Tagging$SPECIES=with(Tagging,ifelse(SPECIES=="LP","ZE",
