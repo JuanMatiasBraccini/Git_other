@@ -18,6 +18,7 @@ Dat.Beis<-'Sharks v20220906.mdb'
 #Dat.Beis<-'Sharks v20240820 UAT.mdb' #new database updated by Vero's team.. Previous: 'Sharks v20220906.mdb'  'Sharks.mdb'
 channel <- odbcConnectAccess2007(Dat.Beis)  
 Tagging=sqlFetch(channel, "Tag data", colnames = F) 
+Tag.recaptures=sqlFetch(channel, "Tag recaptures", colnames = F) 
 Boat_hdr=sqlFetch(channel, "Boat_hdr", colnames = F) 
 Boat_bio=sqlFetch(channel, "Boat_bio", colnames = F) 
 Flinders_hdr=sqlFetch(channel, "FLINDERS HDR", colnames = F) 
@@ -49,8 +50,8 @@ GummySA=read.csv("Terry_data/OutWA.intoWA.csv")
 Species.Codes=read.csv(handl_OneDrive("Data/Species.code.csv"),stringsAsFactors=FALSE, fileEncoding="latin1")
 Species.Size.Range=read.csv(handl_OneDrive("Data/Species.Size.Range.csv"))      
 
-
-
+# PARAMETERS SECTION -----------------------------------------------------------------------
+Min.biological.length=20
 
 # PROCEDURE SECTION -----------------------------------------------------------------------
 
@@ -76,31 +77,36 @@ Gear=rbind(Boat_hdr,Flinders_hdr)
 
 
 #Make gummy variables compatible
-Gummy=rbind(GummyWA,GummySA)
-Gummy$Sp="GM"
-Gummy$SEX=with(Gummy,ifelse(X==1,"M",ifelse(X==2,"F","U")))
-Gummy$SPECIES=Gummy$Sp
-Gummy$SHEET_NO="Dummy"
-#Gummy$"RELEASE.DATE"=as.POSIXct(with(Gummy,paste(YrRl,"-",MnRl,"-",DyRl,sep="")))
-Gummy$Yr.rel=Gummy$YrRl
-Gummy$Mn.rel=Gummy$MnRl
-Gummy$Day.rel=Gummy$DyRl
-
-Gummy$Yr.rec=Gummy$YrRc
-Gummy$Mn.rec=Gummy$MnRc
-Gummy$Day.rec=Gummy$DyRc
-
-Gummy$Recaptured=with(Gummy, ifelse(is.na(YrRc),"NO","YES"))
-#Gummy$DATE_CAPTR=with(Gummy,ifelse(!is.na(YrRc),paste(YrRc,"-",MnRc,"-",DyRc,sep=""),NA))
-#Gummy$DATE_CAPTR=as.POSIXct(strptime(Gummy$DATE_CAPTR,format="%Y-%m-%d"))
-Gummy$CONDITION=Gummy$C
-Gummy$"Tag.no"=Gummy$TAG1NO
-Gummy$FINTAGNO=Gummy$"Tag.no"
-
 b.w=8.891; a.w=1.046  #total to fork length (used the inverse of whiskery as no data available)
 b.g=4.6424; a.g=1.08
-Gummy$FL=round(((Gummy$TLRl-b.g)/a.g)/10)
-Gummy$CAP_FL=round(((Gummy$TLRc-b.g)/a.g)/10)
+Gummy=rbind(GummyWA,GummySA)%>%
+        mutate(Sp="GM",
+               SEX=ifelse(X==1,"M",ifelse(X==2,"F","U")),
+               SPECIES="GM",
+               SHEET_NO="Dummy",
+               Yr.rel=YrRl,
+               Mn.rel=MnRl,
+               Day.rel=DyRl,
+               Yr.rec=YrRc,
+               Mn.rec=MnRc,
+               Day.rec=DyRc,
+               Recaptured=ifelse(is.na(YrRc),"NO","YES"),
+               CONDITION=C,
+               Tag.no=TAG1NO,
+               FINTAGNO=TAG1NO,
+               FL=round(((TLRl-b.g)/a.g)/10),
+               CAP_FL=round(((TLRc-b.g)/a.g)/10),
+               ATAG.NO=NA,
+               Lat.rec=-abs(LatRc),
+               Long.rec=LonRc,
+               Lat.rels=-abs(LatRl),
+               Long.rels=LonRl,
+               Tag.type="conventional",
+               BOTDEPTH=NA,
+               BOAT=NA)
+#Gummy$"RELEASE.DATE"=as.POSIXct(with(Gummy,paste(YrRl,"-",MnRl,"-",DyRl,sep="")))
+#Gummy$DATE_CAPTR=with(Gummy,ifelse(!is.na(YrRc),paste(YrRc,"-",MnRc,"-",DyRc,sep=""),NA))
+#Gummy$DATE_CAPTR=as.POSIXct(strptime(Gummy$DATE_CAPTR,format="%Y-%m-%d"))
 Terry.gear.code=data.frame(GrRl=1:16,
                            GrRc=1:16,
                            Method=c("LL","GN","non-shark monfilament","GN",
@@ -112,16 +118,6 @@ Gummy=Gummy%>%
                 by='GrRc')%>%
       left_join(Terry.gear.code%>%dplyr::select(GrRl,Method),
                 by='GrRl')
-
-Gummy$"ATAG.NO"=NA
-Gummy$Lat.rec=-Gummy$LatRc
-Gummy$Long.rec=Gummy$LonRc
-Gummy$Lat.rels=-Gummy$LatRl
-Gummy$Long.rels=Gummy$LonRl
-Gummy$Tag.type="conventional"
-Gummy$BOTDEPTH=NA
-Gummy$BOAT=NA
-
 
 #release and recapture methods 
 Gummy=Gummy%>%
@@ -372,15 +368,117 @@ Tagging=Tagging[,-match(Drop.this,names(Tagging))]
 Tagging=rbind(Tagging,Gummy[,match(names(Tagging),names(Gummy))])
 
 
-
-#change nonsense recapture data
-Tag.nonsense.rec=c(476,3021)
-these.nonsense.rec=match(Tag.nonsense.rec,Tagging$FINTAGNO)
-na.these.cols=match(c("Lat.rec","Long.rec"),names(Tagging))
-Tagging[these.nonsense.rec,na.these.cols]=NA  #set to NA the recapture location
-
+#add recaptures not entered in database  
 Tagging=Tagging%>%
-            mutate(CAP_FL=ifelse(CAP_FL<20,NA,CAP_FL),
+  mutate(Day.rec=case_when(Tag.no=='d3254' & Recaptured=='No'~28,
+                           TRUE~Day.rec),
+         Mn.rec=case_when(Tag.no=='d3254' & Recaptured=='No'~7,
+                          TRUE~Mn.rec),
+         Yr.rec=case_when(Tag.no=='d3254' & Recaptured=='No'~2024,
+                          TRUE~Yr.rec),
+         Lat.rec=case_when(Tag.no=='d3254' & Recaptured=='No'~-22.1783667,
+                           TRUE~Lat.rec),
+         Long.rec=case_when(Tag.no=='d3254' & Recaptured=='No'~113.7791167,
+                            TRUE~Long.rec),
+         CAPT_METHD=case_when(Tag.no=='d3254' & Recaptured=='No'~'rod and reel',
+                              TRUE~CAPT_METHD),
+         Rec.method=case_when(Tag.no=='d3254' & Recaptured=='No'~'Other',
+                              TRUE~Rec.method),
+         Recaptured=case_when(Tag.no=='d3254' & Recaptured=='No'~'Yes',
+                              TRUE~Recaptured))
+
+
+#Fix a few dodgy recapture locations and dates
+ALL.These=c("R00255","R00256","R00257","R00258","R00259","R00260","R00261",
+            "R00262","R00263","R00264","R00265","R00266","R00267","R00268")
+Tagging$Yr.rel=with(Tagging,ifelse(SHEET_NO%in%c("R00502","R00504"),2002,
+                                   ifelse(SHEET_NO%in%ALL.These,2000,
+                                          ifelse(SHEET_NO%in%c("R00176","R00177","R00178",
+                                                               "R00179","R00180","R00181","R00182","R00183","R00184"),1998,Yr.rel))))
+Tagging$Mn.rel=with(Tagging,ifelse(SHEET_NO%in%ALL.These,5,
+                                   ifelse(SHEET_NO%in%c("R00176","R00177","R00178","R00179","R00180","R00181"),9,
+                                          ifelse(SHEET_NO%in%c("R00182","R00183","R00184"),10,Mn.rel))))
+
+Tagging$Day.rel=with(Tagging,ifelse(SHEET_NO=="R00255",5,
+                                    ifelse(SHEET_NO=="R00256",6,       
+                                           ifelse(SHEET_NO=="R00257",7,
+                                                  ifelse(SHEET_NO=="R00258",8,
+                                                         ifelse(SHEET_NO=="R00259",9,
+                                                                ifelse(SHEET_NO=="R00260",10,
+                                                                       ifelse(SHEET_NO=="R00261",13,   
+                                                                              ifelse(SHEET_NO=="R00262",14,   
+                                                                                     ifelse(SHEET_NO=="R00263",15,                    
+                                                                                            ifelse(SHEET_NO=="R00264",16,
+                                                                                                   ifelse(SHEET_NO=="R00265",17,
+                                                                                                          ifelse(SHEET_NO=="R00266",18,
+                                                                                                                 ifelse(SHEET_NO=="R00267",19,
+                                                                                                                        ifelse(SHEET_NO=="R00268",20,
+                                                                                                                               ifelse(SHEET_NO=="R00176",25,      
+                                                                                                                                      ifelse(SHEET_NO=="R00177",26,     
+                                                                                                                                             ifelse(SHEET_NO=="R00178",27,   
+                                                                                                                                                    ifelse(SHEET_NO=="R00179",28,        
+                                                                                                                                                           ifelse(SHEET_NO=="R00180",29,    
+                                                                                                                                                                  ifelse(SHEET_NO=="R00181",30,        
+                                                                                                                                                                         ifelse(SHEET_NO=="R00182",2,        
+                                                                                                                                                                                ifelse(SHEET_NO=="R00183",4,
+                                                                                                                                                                                       ifelse(SHEET_NO=="R00184",5,Day.rel))))))))))))))))))))))))
+
+#set 1900 year to NA
+Tagging$Day.rel=with(Tagging,ifelse(Yr.rel==1900,NA,Day.rel))
+Tagging$Mn.rel=with(Tagging,ifelse(Yr.rel==1900,NA,Mn.rel))
+Tagging$Yr.rel=with(Tagging,ifelse(Yr.rel==1900,NA,Yr.rel))
+Tagging=Tagging%>%
+          mutate(Lat.rec=ifelse(Lat.rec==0,NA,Lat.rec),
+                 Long.rec=ifelse(Long.rec==0,NA,Long.rec),
+                 Day.rec=case_when(Recaptured=='YES' & is.na(Day.rec) & !is.na(Lat.rec) & !Lat.rec==0~1,
+                                   Recaptured=='YES' & Tag.no=='2864' & is.na(Day.rec) & !is.na(CAP_FL)~1,
+                            TRUE~Day.rec),
+                 Mn.rec=case_when(Recaptured=='YES' & is.na(Mn.rec) & !is.na(Lat.rec) & !Lat.rec==0~Mn.rel,
+                                  Recaptured=='YES' & Tag.no=='2864' & is.na(Mn.rec) & !is.na(CAP_FL)~Mn.rel,
+                                   TRUE~Mn.rec),
+                 Yr.rec=case_when(Yr.rec==1900~Yr.rel+1,
+                                  Recaptured=='YES' & is.na(Yr.rec) & !is.na(Lat.rec) & !Lat.rec==0~Yr.rel+1,
+                                  Recaptured=='YES' & Tag.no=='2864' & is.na(Yr.rec) & !is.na(CAP_FL)~Yr.rel+1,
+                                  TRUE~Yr.rec))
+ID=which(Tagging$Yr.rel==1900)
+if(length(ID)>0) Tagging=Tagging[-ID,]
+Tagging$Day.rec=with(Tagging,ifelse(Tag.no%in%c("239"),9,Day.rec))
+Tagging$Mn.rec=with(Tagging,ifelse(Tag.no%in%c("239"),12,Mn.rec))
+Tagging$Yr.rec=with(Tagging,ifelse(Tag.no%in%c("239"),1997,Yr.rec))
+
+#Fix some locations
+Tagging$Lat.rels=with(Tagging,ifelse(SHEET_NO=="J00746",-22.8,
+                                     ifelse(SHEET_NO=="N00401",-20.5402,
+                                            ifelse(SHEET_NO=="N00558",-24.417,
+                                                   ifelse(SHEET_NO=="R00388" & Lat.rels<(-17),-16.211,Lat.rels)))))
+Tagging$Long.rels=with(Tagging,ifelse(SHEET_NO=="N00558",113.21,
+                                      ifelse(SHEET_NO=="N00597",113.1442,
+                                             ifelse(SHEET_NO=="Q00053",115.742,
+                                                    ifelse(SHEET_NO=="N00099",113.2563,
+                                                           ifelse(SHEET_NO=="R00617",113.598,
+                                                                  ifelse(SHEET_NO=="R00863",112.787,
+                                                                         ifelse(SHEET_NO=="R00833",113.99,Long.rels))))))))
+
+Tagging$Lat.rels=with(Tagging,ifelse(SPECIES=="BW" & Long.rels<114 & Lat.rels>-17.7,-21.765,Lat.rels))
+Tagging=Tagging%>%
+  mutate(Lat.rels=case_when(SHEET_NO=='m00087' & Lat.rels>(-22)~ -23.048,
+                            SHEET_NO=='m00239' & Lat.rels<(-18)~ -18.45,
+                            TRUE~Lat.rels),
+         Long.rels=case_when(SHEET_NO=='r00863' & Long.rels>(112)~ 112.78,
+                             TRUE~Long.rels),
+         Long.rec=case_when(SHEET_NO=='t00207' & Long.rec<(100)~ 115.3,
+                            SHEET_NO=='t00003' & Long.rec<(113)~ 115.35,
+                            TRUE~Long.rec),
+         Lat.rec=case_when(SHEET_NO=='n00409' & Lat.rec>(-22) & Lat.rec<(-20)~ -18.4,
+                           TRUE~Lat.rec))
+
+
+#change nonsense 'Recaptured?' column
+#note: the database has hundreds of entries in the 'Recaptured?' column as 'Yes' but no recapture info.
+#      so many additional recaptures is inconsistent with what was reported by McAuley et al, hence set to 'No'
+# minimum data to accept a recapture: at least recapture date or location
+Tagging=Tagging%>%
+            mutate(CAP_FL=ifelse(CAP_FL<Min.biological.length,NA,CAP_FL),
                    dummy.CAP_FL=ifelse(is.na(CAP_FL),1,CAP_FL),
                    dummy.Day.rec=ifelse(is.na(Day.rec),1,Day.rec),
                    dummy.Mn.rec=ifelse(is.na(Mn.rec),1,Mn.rec),
@@ -388,7 +486,7 @@ Tagging=Tagging%>%
                    dummy.Lat.rec=ifelse(is.na(Lat.rec),1,abs(Lat.rec)),
                    dummy.Long.rec=ifelse(is.na(Long.rec),1,Long.rec),
                    dummy=dummy.CAP_FL*dummy.Day.rec*dummy.Mn.rec*dummy.Yr.rec*dummy.Lat.rec*dummy.Long.rec,
-                   #Recaptured=ifelse(Recaptured=="YES" & dummy<=1,"NO",Recaptured),  
+                   Recaptured=ifelse(Recaptured=="YES" & dummy==1,"NO",Recaptured),  
                    Lat.rec=ifelse(Recaptured=="NO",NA,Lat.rec),
                    Long.rec=ifelse(Recaptured=="NO",NA,Long.rec),
                    Long.rels=ifelse(SHEET_NO=='R00863',112.7868,
@@ -403,44 +501,21 @@ Tagging=Tagging%>%
             dplyr::select(-c(dummy,dummy.CAP_FL,dummy.Day.rec,dummy.Mn.rec,dummy.Yr.rec,dummy.Lat.rec,dummy.Long.rec))
 
 #fix species names
-#Tagging$SPECIES=with(Tagging,ifelse(SPECIES%in%c("WC","WD","WS","WW"),"WB",SPECIES)) #Identification of wobbegongs was found to be unreliable so set all wobbies to general
 Tagging$SPECIES=with(Tagging,ifelse(SPECIES=="LP","ZE",
                              ifelse(SPECIES=="DF","SD",
                                     SPECIES)))   #LP is zebra shark; DF is spurdog
-
 Tagging$SPECIES=toupper(Tagging$SPECIES)
-
 Tagging=subset(Tagging,!SPECIES=='SR') #one record of stingray with no other data, assumed to be typo
 
 #change awkward names
-colnames(Tagging)[match(c("SEX","SPECIES","FL"),names(Tagging))]=
-  c("Sex","Species","Rel_FL")
+colnames(Tagging)[match(c("SEX","SPECIES","FL"),names(Tagging))]=c("Sex","Species","Rel_FL")
 
 #fix sex
 Tagging$Sex=ifelse(Tagging$Sex%in%c("F","f"),"F",ifelse(Tagging$Sex%in%c("m","M"),"M","U"))
 
-#add recaptures not entered in database  
-Tagging=Tagging%>%
-  mutate(Day.rec=case_when(Tag.no=='d3254' & Recaptured=='No'~28,
-                           TRUE~Day.rec),
-         Mn.rec=case_when(Tag.no=='d3254' & Recaptured=='No'~7,
-                           TRUE~Mn.rec),
-         Yr.rec=case_when(Tag.no=='d3254' & Recaptured=='No'~2024,
-                           TRUE~Yr.rec),
-         Lat.rec=case_when(Tag.no=='d3254' & Recaptured=='No'~-22.1783667,
-                              TRUE~Lat.rec),
-         Long.rec=case_when(Tag.no=='d3254' & Recaptured=='No'~113.7791167,
-                              TRUE~Long.rec),
-         CAPT_METHD=case_when(Tag.no=='d3254' & Recaptured=='No'~'rod and reel',
-                              TRUE~CAPT_METHD),
-         Rec.method=case_when(Tag.no=='d3254' & Recaptured=='No'~'Other',
-                              TRUE~Rec.method),
-         Recaptured=case_when(Tag.no=='d3254' & Recaptured=='No'~'Yes',
-                              TRUE~Recaptured))
 
 #Create useful variables
-
-#areas
+  #areas
 eachArea=c("JASDGDLF.zone2","JASDGDLF.zone1","WCDGDLF","Closed","WANCSF","JANSF")
 Tagging$Areas=with(Tagging,ifelse(Lat.rels<=(-26.5) & Lat.rels>=(-33) & Long.rels <=116,eachArea[3],
                     ifelse(Lat.rels<(-33) & Lat.rels>=(-41) & Long.rels <=116.5,eachArea[2],
@@ -470,12 +545,12 @@ names(LetrasAreas)=names(ColorAreas)
 
 
 #remove nonsene recapture and release FL
-Tagging$Rel_FL=with(Tagging,ifelse(Rel_FL>600,Rel_FL/10,Rel_FL))
+Tagging$Rel_FL=with(Tagging,ifelse(Rel_FL>600,Rel_FL/10,Rel_FL)) #FL entered in mm
 Tagging$Rel_FL=ifelse(Tagging$Rel_FL>500,NA,Tagging$Rel_FL)
 Tagging$CAP_FL=ifelse(Tagging$CAP_FL>500,NA,Tagging$CAP_FL)
 Tagging$Rel_FL=ifelse(Tagging$Rel_FL==0,NA,Tagging$Rel_FL)
-Tagging$Rel_FL=with(Tagging,ifelse(Rel_FL<10,NA,Rel_FL))
-Tagging$CAP_FL=with(Tagging,ifelse(CAP_FL<10,NA,CAP_FL))
+Tagging$Rel_FL=with(Tagging,ifelse(Rel_FL<Min.biological.length,NA,Rel_FL))   
+Tagging$CAP_FL=with(Tagging,ifelse(CAP_FL<Min.biological.length,NA,CAP_FL))
 Tagging$CAP_FL=with(Tagging,ifelse(CAP_FL<Rel_FL,NA,CAP_FL))
 
 
@@ -488,94 +563,6 @@ Tagging=left_join(Tagging,Species.Codes%>%distinct(Species,.keep_all = T),by="Sp
 Tagging=Tagging%>%
           filter(!Species=="")%>%
           filter(!COMMON_NAME%in%c("","Unknown"))
-
-
-#Fix some dates
-Tagging$Day.rec=with(Tagging,ifelse(Tag.no=="a154a",10,Day.rec))
-Tagging$Mn.rec=with(Tagging,ifelse(Tag.no=="a154a",3,Mn.rec))
-Tagging$Yr.rec=with(Tagging,ifelse(Tag.no=="a154a",2013,Yr.rec))
-
-Tagging$Day.rec=with(Tagging,ifelse(Tag.no%in%c("884","3326","3327"),NA,Day.rec))
-Tagging$Mn.rec=with(Tagging,ifelse(Tag.no%in%c("884","3326","3327"),NA,Mn.rec))
-Tagging$Yr.rec=with(Tagging,ifelse(Tag.no%in%c("884","3326","3327"),NA,Yr.rec))
-
-
-ID=which(Tagging$Yr.rel==1900)
-if(length(ID)>0) Tagging=Tagging[-ID,]
-Tagging$Day.rec=with(Tagging,ifelse(Tag.no%in%c("239"),9,Day.rec))
-Tagging$Mn.rec=with(Tagging,ifelse(Tag.no%in%c("239"),12,Mn.rec))
-Tagging$Yr.rec=with(Tagging,ifelse(Tag.no%in%c("239"),1997,Yr.rec))
-
-
-# #Checks
-# #Future checks
-# Future.rel=subset(Tagging,Yr.rel>2014)
-# Future.rec=subset(Tagging,Yr.rec>2014)
-# Check1=Future.rel[,match(c("SHEET_NO","Tag.no"),names(Future.rel))]
-# 
-# #Past checks
-# Past.rel=subset(Tagging,Yr.rel<1980)
-# Past.rec=subset(Tagging,Yr.rec<1980)
-# Check2=Past.rel[!duplicated(Past.rel$SHEET_NO),match(c("SHEET_NO","Tag.no"),names(Past.rel))]
-# 
-# #Rec before release
-# Rec.before.Rel=subset(Tagging,Day.rec<=Day.rel & Mn.rec<=Mn.rel &  Yr.rec<=Yr.rel)
-# Check3=unique(Rec.before.Rel$Tag.no)
-# Check3=Rec.before.Rel[!duplicated(Rec.before.Rel$SHEET_NO),match(c("SHEET_NO","Tag.no"),names(Rec.before.Rel))]
-
-ALL.These=c("R00255","R00256","R00257","R00258","R00259","R00260","R00261",
-   "R00262","R00263","R00264","R00265","R00266","R00267","R00268")
-Tagging$Yr.rel=with(Tagging,ifelse(SHEET_NO%in%c("R00502","R00504"),2002,
-              ifelse(SHEET_NO%in%ALL.These,2000,
-              ifelse(SHEET_NO%in%c("R00176","R00177","R00178",
-              "R00179","R00180","R00181","R00182","R00183","R00184"),1998,Yr.rel))))
-Tagging$Mn.rel=with(Tagging,ifelse(SHEET_NO%in%ALL.These,5,
-        ifelse(SHEET_NO%in%c("R00176","R00177","R00178","R00179","R00180","R00181"),9,
-        ifelse(SHEET_NO%in%c("R00182","R00183","R00184"),10,Mn.rel))))
-
-Tagging$Day.rel=with(Tagging,ifelse(SHEET_NO=="R00255",5,
-                ifelse(SHEET_NO=="R00256",6,       
-                ifelse(SHEET_NO=="R00257",7,
-                ifelse(SHEET_NO=="R00258",8,
-                ifelse(SHEET_NO=="R00259",9,
-                ifelse(SHEET_NO=="R00260",10,
-                ifelse(SHEET_NO=="R00261",13,   
-                ifelse(SHEET_NO=="R00262",14,   
-                ifelse(SHEET_NO=="R00263",15,                    
-                ifelse(SHEET_NO=="R00264",16,
-                ifelse(SHEET_NO=="R00265",17,
-                ifelse(SHEET_NO=="R00266",18,
-                ifelse(SHEET_NO=="R00267",19,
-                ifelse(SHEET_NO=="R00268",20,
-                ifelse(SHEET_NO=="R00176",25,      
-                ifelse(SHEET_NO=="R00177",26,     
-                ifelse(SHEET_NO=="R00178",27,   
-                ifelse(SHEET_NO=="R00179",28,        
-                ifelse(SHEET_NO=="R00180",29,    
-                ifelse(SHEET_NO=="R00181",30,        
-                ifelse(SHEET_NO=="R00182",2,        
-                ifelse(SHEET_NO=="R00183",4,
-                ifelse(SHEET_NO=="R00184",5,Day.rel))))))))))))))))))))))))
-
-  #set 1900 year to NA
-Tagging$Day.rel=with(Tagging,ifelse(Yr.rel==1900,NA,Day.rel))
-Tagging$Mn.rel=with(Tagging,ifelse(Yr.rel==1900,NA,Mn.rel))
-Tagging$Yr.rel=with(Tagging,ifelse(Yr.rel==1900,NA,Yr.rel))
-
-
-
-#Fix some locations
-Tagging$Lat.rels=with(Tagging,ifelse(SHEET_NO=="J00746",-22.8,
-                      ifelse(SHEET_NO=="N00401",-20.5402,
-                      ifelse(SHEET_NO=="N00558",-24.417,
-                      ifelse(SHEET_NO=="R00388" & Lat.rels<(-17),-16.211,Lat.rels)))))
-Tagging$Long.rels=with(Tagging,ifelse(SHEET_NO=="N00558",113.21,
-                    ifelse(SHEET_NO=="N00597",113.1442,
-                    ifelse(SHEET_NO=="Q00053",115.742,
-                    ifelse(SHEET_NO=="N00099",113.2563,
-                    ifelse(SHEET_NO=="R00617",113.598,
-                    ifelse(SHEET_NO=="R00863",112.787,
-                    ifelse(SHEET_NO=="R00833",113.99,Long.rels))))))))
 
 
 #Check release and recapture size within species range                
@@ -635,18 +622,7 @@ Dup.Tags=Tagging$Unico[ind]
 if(length(Dup.Tags)>0)Tagging=Tagging[!(duplicated(Tagging$Unico)),-match("Unico",names(Tagging))]
 
 
-#Fix dodgy lats and longs
-Tagging$Lat.rels=with(Tagging,ifelse(Species=="BW" & Long.rels<114 & Lat.rels>-17.7,-21.765,Lat.rels))
-Tagging=Tagging%>%
-          mutate(Lat.rels=case_when(SHEET_NO=='m00087' & Lat.rels>(-22)~ -23.048,
-                                    SHEET_NO=='m00239' & Lat.rels<(-18)~ -18.45,
-                                    TRUE~Lat.rels),
-                 Long.rels=case_when(SHEET_NO=='r00863' & Long.rels>(112)~ 112.78,
-                                    TRUE~Long.rels),
-                 Long.rec=case_when(SHEET_NO=='t00207' & Long.rec<(100)~ 115.3,
-                                    SHEET_NO=='t00003' & Long.rec<(113)~ 115.35,
-                                     TRUE~Long.rec),
-                 Lat.rec=case_when(SHEET_NO=='n00409' & Lat.rec>(-22) & Lat.rec<(-20)~ -18.4,
-                                    TRUE~Lat.rec))
+
+
   
 
