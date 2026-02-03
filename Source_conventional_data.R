@@ -6,6 +6,7 @@ library(RODBC)    		#library for importing excel data
 library(lubridate)
 library(dplyr)
 library(Hmisc)
+if(!exists('handl_OneDrive')) source('C:/Users/myb/OneDrive - Department of Primary Industries and Regional Development/Matias/Analyses/SOURCE_SCRIPTS/Git_other/handl_OneDrive.R')
 
 # DATA SECTION -----------------------------------------------------------------------
 
@@ -29,13 +30,6 @@ Tagging$SHEET_NO=tolower(Tagging$SHEET_NO)
 Boat_hdr$SHEET_NO=tolower(Boat_hdr$SHEET_NO)
 Boat_bio$SHEET_NO=tolower(Boat_bio$SHEET_NO)
 Flinders_hdr$SHEET_NO=tolower(Flinders_hdr$SHEET_NO)
-
-#remove duplicated tags
-Tagging=Tagging[order(Tagging$"Tag no",Tagging$"RELEASE DATE"),]
-Tagging=Tagging[!duplicated(Tagging$"Tag no"),]
-
-if(!exists('handl_OneDrive')) source('C:/Users/myb/OneDrive - Department of Primary Industries and Regional Development/Matias/Analyses/SOURCE_SCRIPTS/Git_other/handl_OneDrive.R')
-
 
 
 setwd(handl_OneDrive("Data/Tagging/Conventional_tagging"))
@@ -194,6 +188,11 @@ Tagging=Tagging%>%
       dplyr::select(-Tag.no2)
 
 
+#remove duplicated tags
+Tagging=Tagging%>%
+          filter(!is.na(Tag.no))
+
+
 #release and recapture methods 
 Res.ves=c('HAM','HOU','NAT','RV BREAKSEA','RV Gannet','RV GANNET','RV SNIPE 2','FLIN','naturaliste')
 Tagging=Tagging%>%
@@ -253,30 +252,54 @@ Boat_bio=Boat_bio%>%
 Tagging=Tagging%>%
   mutate(Tag.no=case_when(Tag.no=='1284' & SPECIES=='MI'~'dart6078',
                           Tag.no=='a175a' & SPECIES=='GM'~'A29506',
+                          Tag.no=='122' & SPECIES=='BW'~DARTTAGNO,
+                          Tag.no=='1016' & SPECIES=='BW'~DARTTAGNO,
+                          Tag.no=='1016' & SPECIES=='TK'~DARTTAGNO,
+                          Tag.no=='2533' & SPECIES=='TK'~DARTTAGNO,
                           Tag.no=='d0203' & SHEET_NO=='w00124'~'D0203_1',
                           TRUE~Tag.no))
+#remove duplicates
+Tagging=Tagging%>%
+          mutate(dupli=paste(RELEASE.DATE,SPECIES,Tag.no,FL,SEX,RELLATDECDEG,RELLNGDECDEG,Method,BOAT))%>%
+          distinct(dupli,.keep_all = T)%>%
+          dplyr::select(-dupli)
 
-Tagging=full_join(Tagging,
-                  Boat_bio%>%
-                    mutate(SP.tg=paste(SPECIES,Tag.no))%>%
-                    filter(SP.tg%in%unique(paste(Tagging$SPECIES,Tagging$Tag.no)))%>%
-                    dplyr:::select(SHEET_NO_Boat_bio,SPECIES,TL,FL,Tag.no,
-                                   Tag.type2,CONDITION_Boat_bio,SEX_Boat_bio),
-                  by=c("SPECIES","Tag.no","FL"))%>%
+#combine tagging and boat_bio   
+Tagging=Tagging%>%
+            mutate(SEX=case_when(SEX%in%c('f')~'F',
+                                 SEX%in%c('m')~'M',
+                                 SEX%in%c('?','n','N','p')~NA_character_,
+                                 TRUE~SEX))%>%
+            left_join(Boat_bio%>%
+                          mutate(SEX_Boat_bio=case_when(SEX_Boat_bio%in%c('f')~'F',
+                                               SEX_Boat_bio%in%c('m')~'M',
+                                               SEX_Boat_bio%in%c('?','n','N','p')~NA_character_,
+                                               TRUE~SEX_Boat_bio),
+                                 SP.tg=paste(SPECIES,Tag.no))%>%
+                          mutate(dupli=paste(SHEET_NO_Boat_bio,SPECIES,FL,Tag.no,SEX_Boat_bio))%>%
+                          distinct(dupli,.keep_all = T)%>%
+                          dplyr::select(-dupli)%>%
+                          filter(SP.tg%in%unique(paste(Tagging$SPECIES,Tagging$Tag.no)))%>%
+                          dplyr:::select(SHEET_NO_Boat_bio,SPECIES,TL,FL,Tag.no,
+                                         Tag.type2,CONDITION_Boat_bio,SEX_Boat_bio),
+                              by=c("SHEET_NO"="SHEET_NO_Boat_bio","SPECIES","Tag.no","FL","SEX"="SEX_Boat_bio"))%>%
             mutate(FL=ifelse(is.na(FL) & !is.na(TL) & !SPECIES%in%TL.species,TL*.85,FL),
                    FL=ifelse(SPECIES%in%TL.species,TL,FL),
                    Tag.type=ifelse(is.na(Tag.type)&!is.na(Tag.type2),Tag.type2,Tag.type))%>%
-        dplyr::select(-Tag.type2)%>%
-        mutate(SHEET_NO=ifelse(is.na(SHEET_NO),SHEET_NO_Boat_bio,SHEET_NO),
-               CONDITION=ifelse(is.na(CONDITION),CONDITION_Boat_bio,CONDITION),
-               SEX=ifelse(is.na(SEX),SEX_Boat_bio,SEX))
+            dplyr::select(-Tag.type2)%>%
+            mutate(CONDITION=ifelse(is.na(CONDITION),CONDITION_Boat_bio,CONDITION))
 dd=table(Tagging$Tag.no)
 dd=subset(dd,dd>1)
 Tagging=Tagging%>%
           mutate(drop.dup=ifelse(Tag.no %in% names(dd) & is.na(RELEASE.DATE),'yes','no'))%>%
           filter(drop.dup=='no')%>%
           dplyr::select(-drop.dup)
-Tagging=Tagging[!duplicated(Tagging$Tag.no),]
+
+Tagging=Tagging%>%
+      mutate(dupli=paste(RELEASE.DATE,SPECIES,Tag.no,FL,SEX,RELLATDECDEG,RELLNGDECDEG,Method,BOAT))%>%
+      distinct(dupli,.keep_all = T)%>%
+      dplyr::select(-dupli)
+
 
 Gear1=Gear%>%
         distinct(SHEET_NO,.keep_all = T)%>%
@@ -305,14 +328,14 @@ Tagging=Tagging%>%
                               Method=='GN' & !BOAT%in%Res.ves~"Commercial gillnet",
                               TRUE~"Other"))
 
-#check for duplicates   
+#check for duplicates  
 Tagging$Unico=with(Tagging,paste(Tag.no,SPECIES,FL))
 ind=which(duplicated(Tagging$Unico)==T)
 Dup.Tags=Tagging$Unico[ind]
 if(length(Dup.Tags)>0)Tagging=Tagging[!(duplicated(Tagging$Unico)),-match("Unico",names(Tagging))]
 
 
-#subset tagging data
+#select relevant tagging variables
 Tagging=Tagging%>%
           mutate(Day.rel=day(RELEASE.DATE),   
                  Mn.rel=month(RELEASE.DATE),
@@ -476,7 +499,9 @@ Tagging=Tagging%>%
 #change nonsense 'Recaptured?' column
 #note: the database has hundreds of entries in the 'Recaptured?' column as 'Yes' but no recapture info.
 #      so many additional recaptures is inconsistent with what was reported by McAuley et al, hence set to 'No'
+
 # minimum data to accept a recapture: at least recapture date or location
+
 Tagging=Tagging%>%
             mutate(CAP_FL=ifelse(CAP_FL<Min.biological.length,NA,CAP_FL),
                    dummy.CAP_FL=ifelse(is.na(CAP_FL),1,CAP_FL),
