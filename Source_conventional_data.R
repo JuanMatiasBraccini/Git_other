@@ -188,9 +188,8 @@ Tagging=Tagging%>%
       dplyr::select(-Tag.no2)
 
 
-#remove duplicated tags
-Tagging=Tagging%>%
-          filter(!is.na(Tag.no))
+#remove NA tags
+Tagging=Tagging%>%filter(!is.na(Tag.no))
 
 
 #release and recapture methods 
@@ -252,10 +251,10 @@ Boat_bio=Boat_bio%>%
 Tagging=Tagging%>%
   mutate(Tag.no=case_when(Tag.no=='1284' & SPECIES=='MI'~'dart6078',
                           Tag.no=='a175a' & SPECIES=='GM'~'A29506',
-                          Tag.no=='122' & SPECIES=='BW'~DARTTAGNO,
-                          Tag.no=='1016' & SPECIES=='BW'~DARTTAGNO,
-                          Tag.no=='1016' & SPECIES=='TK'~DARTTAGNO,
-                          Tag.no=='2533' & SPECIES=='TK'~DARTTAGNO,
+                          Tag.no=='122' & SPECIES=='BW'~as.character(DARTTAGNO),
+                          Tag.no=='1016' & SPECIES=='BW'~as.character(DARTTAGNO),
+                          Tag.no=='1016' & SPECIES=='TK'~as.character(DARTTAGNO),
+                          Tag.no=='2533' & SPECIES=='TK'~as.character(DARTTAGNO),
                           Tag.no=='d0203' & SHEET_NO=='w00124'~'D0203_1',
                           TRUE~Tag.no))
 #remove duplicates
