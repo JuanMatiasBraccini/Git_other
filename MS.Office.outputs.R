@@ -4,36 +4,13 @@ library(flextable)
 #function for creating word tables
 fn.word.table=function(TBL,Doc.nm)
 {
-  #create document
   doc=read_docx()
-  
-  
-  #add table
-  # create basic flextable
-  f.table=qflextable(TBL)
-  
-  # set table borders
-  #f.table=border_outer(f.table, part="header",
-  #                     border=fp_border(color="black", width = 1))
-  #f.table=border_inner_h(f.table, part="all",
-  #                       border=fp_border(color="black", width = 1))
-  #f.table=border_inner_v(f.table, part="all",
-  #                       border=fp_border(color="black", width = 1))
-  
-  # set fonts
+  f.table <- autofit(flextable(TBL))
   f.table=font(f.table,  fontname = "Times", part = "all")
   f.table=flextable::fontsize(f.table, size = 12, part = "all")
-  # also set the table's header font as bold
   f.table=bold(f.table, part = "header")
-  
-  # add the table to the document
-  flextable::body_add_flextable(doc, 
-                                value = f.table, 
-                                align = "left" )
-  
-  
-  # export the doc 
-  print(doc, target=paste(Doc.nm,".docx",sep=''))
+  doc <- body_add_flextable(doc, value = f.table, align = "left")
+  base::print(doc, target = paste(Doc.nm,".docx",sep=''))
 }
 
 #function for creating word figures

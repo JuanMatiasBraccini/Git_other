@@ -19,7 +19,7 @@ Dat.Beis<-'Sharks v20220906.mdb'
 #Dat.Beis<-'Sharks v20240820 UAT.mdb' #new database updated by Vero's team.. Previous: 'Sharks v20220906.mdb'  'Sharks.mdb'
 channel <- odbcConnectAccess2007(Dat.Beis)  
 Tagging=sqlFetch(channel, "Tag data", colnames = F) 
-Tag.recaptures=sqlFetch(channel, "Tag recaptures", colnames = F) 
+#Tag.recaptures=sqlFetch(channel, "Tag recaptures", colnames = F)  #this is only a summary table
 Boat_hdr=sqlFetch(channel, "Boat_hdr", colnames = F) 
 Boat_bio=sqlFetch(channel, "Boat_bio", colnames = F) 
 Flinders_hdr=sqlFetch(channel, "FLINDERS HDR", colnames = F) 
@@ -43,6 +43,7 @@ GummySA=read.csv("Terry_data/OutWA.intoWA.csv")
 #Species codes 
 Species.Codes=read.csv(handl_OneDrive("Data/Species.code.csv"),stringsAsFactors=FALSE, fileEncoding="latin1")
 Species.Size.Range=read.csv(handl_OneDrive("Data/Species.Size.Range.csv"))      
+
 
 # PARAMETERS SECTION -----------------------------------------------------------------------
 Min.biological.length=20
@@ -97,7 +98,8 @@ Gummy=rbind(GummyWA,GummySA)%>%
                Long.rels=LonRl,
                Tag.type="conventional",
                BOTDEPTH=NA,
-               BOAT=NA)
+               BOAT=NA,
+               CAPTVESS=NA)
 #Gummy$"RELEASE.DATE"=as.POSIXct(with(Gummy,paste(YrRl,"-",MnRl,"-",DyRl,sep="")))
 #Gummy$DATE_CAPTR=with(Gummy,ifelse(!is.na(YrRc),paste(YrRc,"-",MnRc,"-",DyRc,sep=""),NA))
 #Gummy$DATE_CAPTR=as.POSIXct(strptime(Gummy$DATE_CAPTR,format="%Y-%m-%d"))
@@ -191,12 +193,75 @@ Tagging=Tagging%>%
 #remove NA tags
 Tagging=Tagging%>%filter(!is.na(Tag.no))
 
+#fix recapture vessel 
+Tagging=Tagging%>%
+  mutate(CAPTVESS=tolower(CAPTVESS),
+         CAPTVESS=gsub(" ", "",CAPTVESS),
+         CAPTVESS.original=CAPTVESS,
+         CAPTVESS=case_when(CAPTVESS%in%c("rvnaturaliste","nat") ~'naturaliste',
+                            CAPTVESS=="b22" ~"b022",
+                            CAPTVESS=="b42" ~"b042",
+                            CAPTVESS=="b67" ~"b067",
+                            CAPTVESS=="b91" ~"b091",
+                            CAPTVESS=="c19" ~"c019",
+                            CAPTVESS=="d63" ~"d063",
+                            CAPTVESS=="e05" ~"e005",
+                            CAPTVESS=="e34" ~"e034",
+                            CAPTVESS=="e35" ~"e035",
+                            CAPTVESS=="e4" ~"e004",
+                            CAPTVESS=="e56" ~"e056",
+                            CAPTVESS%in%c("e67",'quadrant') ~"e067",
+                            CAPTVESS=="f4" ~"f004",
+                            CAPTVESS=="f70" ~"f070",
+                            CAPTVESS=="fd60" ~"f060",
+                            CAPTVESS=="ph05" ~"ph005",
+                            CAPTVESS=="ps8" ~"ps008",
+                            CAPTVESS=="fvdiscovery" ~"f674",
+                            CAPTVESS%in%c("lfb3","biteme") ~"f517",
+                            CAPTVESS=="falcon2" ~"e067",
+                            #CAPTVESS=="figtreebay" ~"",                #missing: replace these boat names with VESSEL
+                            #CAPTVESS=="tara-lyn" ~"",
+                            #CAPTVESS=="samarinescalefish" ~"",
+                            #CAPTVESS=="elenmichelle" ~"",
+                            grepl(tolower('COOKE'),tolower(CAPTOR)) ~"e035",
+                            grepl(tolower('A.MANSTED'),tolower(CAPTOR)) ~"e009",
+                            grepl(tolower('A.SPINELLA'),tolower(CAPTOR)) ~"f277",
+                            grepl(tolower('SCIMONE'),tolower(CAPTOR)) ~"b142",
+                            grepl(tolower('G.MARTIN'),tolower(CAPTOR)) ~"e055",
+                            grepl(tolower('G.CAMPBELL'),tolower(CAPTOR)) ~"e067",
+                            grepl(tolower('CHALLIS'),tolower(CAPTOR)) ~"b042",
+                            grepl(tolower('SMYTHE'),tolower(CAPTOR)) ~"f517",
+                            grepl(tolower('Tindal'),tolower(CAPTOR)) ~"e067",
+                            grepl(tolower('WARRILOW'),tolower(CAPTOR)) ~"b091",
+                            grepl(tolower('PARKER'),tolower(CAPTOR)) ~"f417",
+                            grepl(tolower('GOODAL'),tolower(CAPTOR)) ~"e007",
+                            grepl(tolower('Tonkin'),tolower(CAPTOR)) ~"e034",
+                            #grepl(tolower('Beveridge'),tolower(CAPTOR)) ~"",    #missing, Sarah is looking into this
+                            #grepl(tolower('MARKELLOS'),tolower(CAPTOR)) ~"",
+                            #grepl(tolower('B.HAY'),tolower(CAPTOR)) ~"",
+                            #grepl(tolower('B.TURNER'),tolower(CAPTOR)) ~"",
+                            #grepl(tolower('C.HAYES'),tolower(CAPTOR)) ~"",
+                            #grepl(tolower('D.WILLIAMS'),tolower(CAPTOR)) ~"",
+                            #grepl(tolower('G.GREEN'),tolower(CAPTOR)) ~"",
+                            #grepl(tolower('G.KENNEDY'),tolower(CAPTOR)) ~"",
+                            #grepl(tolower('G.SCHMUCKER'),tolower(CAPTOR)) ~"",
+                            #grepl(tolower('Greg Whtstone'),tolower(CAPTOR)) ~"",
+                            #grepl(tolower('I.PARRY'),tolower(CAPTOR)) ~"",
+                            #grepl(tolower('J.ANDRESON'),tolower(CAPTOR)) ~"",
+                            #grepl(tolower('J.BACHOS'),tolower(CAPTOR)) ~"",
+                            #grepl(tolower('M. Reynolds'),tolower(CAPTOR)) ~"",
+                            #grepl(tolower('M.MANNERS'),tolower(CAPTOR)) ~"",
+                            #grepl(tolower('N. LUCAS'),tolower(CAPTOR)) ~"",
+                            #grepl(tolower('N.SOULOS'),tolower(CAPTOR)) ~"",
+                            #grepl(tolower('R. Wilson'),tolower(CAPTOR)) ~"",
+                            #grepl(tolower('R.PLUG'),tolower(CAPTOR)) ~"",
+                            #grepl(tolower('S.MACKENZIE'),tolower(CAPTOR)) ~"",
+                            TRUE~CAPTVESS)) 
 
 #release and recapture methods 
 Res.ves=c('HAM','HOU','NAT','RV BREAKSEA','RV Gannet','RV GANNET','RV SNIPE 2','FLIN','naturaliste')
 Tagging=Tagging%>%
-        mutate(CAPTVESS=tolower(CAPTVESS),
-               Rec.method=case_when(CAPT_METHD%in%c('LL','HK') & CAPTVESS %in% tolower(Res.ves) ~"Research longline",
+        mutate(Rec.method=case_when(CAPT_METHD%in%c('LL','HK') & CAPTVESS %in% tolower(Res.ves) ~"Research longline",
                                     CAPT_METHD=='LL' & !CAPTVESS %in% tolower(Res.ves) ~"Commercial longline",
                                     CAPT_METHD=='GN' & CAPTVESS %in% tolower(Res.ves) ~"Research gillnet",
                                     CAPT_METHD=='GN' & !CAPTVESS %in% tolower(Res.ves) ~"Commercial gillnet",
@@ -351,11 +416,11 @@ Tagging$CAP_FL=as.numeric(Tagging$CAP_FL)
 these.vars=c("SHEET_NO","SPECIES","FINTAGNO","ATAG.NO","DARTTAGNO","Tag.no","Tag.type","FL","SEX",
              "CONDITION","REL_LATD","REL_LATM",
              "REL_LNGD","REL_LNGM","Day.rel","Mn.rel","Yr.rel",
-             "CAPT_METHD","Recaptured","CAP_LATD","CAP_LATM","CAP_LNGD","CAP_LNGM","CAP_FL",
+             "CAPT_METHD","Recaptured","CAP_LATD","CAP_LATM","CAP_LNGD","CAP_LNGM","CAP_FL","CAPTVESS",
              "Day.rec","Mn.rec","Yr.rec",
              'RELLATDECDEG','RELLNGDECDEG','RECLATDECDEG','RECLNGDECDEG',
              'Method_hdr','BOTDEPTH_hdr','BOAT_hdr','MID.LAT_hdr','MID.LONG_hdr',
-             'Rec.method','Rel.method')
+             'Rec.method','Rel.method')   
 Tagging=Tagging[,match(these.vars,names(Tagging))]%>%
               mutate(Recaptured=ifelse(Recaptured%in%c("Y","y"),"YES","NO"))
 
@@ -650,7 +715,7 @@ Dup.Tags=Tagging$Unico[ind]
 if(length(Dup.Tags)>0)Tagging=Tagging[!(duplicated(Tagging$Unico)),-match("Unico",names(Tagging))]
 
 
-
-
+#Remove CAPTVESS if Recaptured=='No'
+Tagging=Tagging%>%mutate(CAPTVESS=ifelse(Recaptured=='No',NA,CAPTVESS))
   
 
