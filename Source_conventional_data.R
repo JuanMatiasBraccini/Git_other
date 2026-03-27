@@ -222,9 +222,9 @@ Tagging=Tagging%>%
                             #CAPTVESS=="figtreebay" ~"",                #missing: replace these boat names with VESSEL
                             #CAPTVESS=="tara-lyn" ~"",
                             #CAPTVESS=="samarinescalefish" ~"",
-                            #CAPTVESS=="elenmichelle" ~"",
-                            #CAPTVESS=="olivialfba40" ~"",
-                            #CAPTVESS=="seapearl" ~"",
+                            CAPTVESS=="elenmichelle" ~"g379",
+                            CAPTVESS=="olivialfba40" ~"a040",
+                            CAPTVESS=="seapearl" ~"f090",
                             grepl(tolower('COOKE'),tolower(CAPTOR)) ~"e035",
                             grepl(tolower('A.MANSTED'),tolower(CAPTOR)) ~"e009",
                             grepl(tolower('A.SPINELLA'),tolower(CAPTOR)) ~"f277",
