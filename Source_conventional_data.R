@@ -223,6 +223,8 @@ Tagging=Tagging%>%
                             #CAPTVESS=="tara-lyn" ~"",
                             #CAPTVESS=="samarinescalefish" ~"",
                             #CAPTVESS=="elenmichelle" ~"",
+                            #CAPTVESS=="olivialfba40" ~"",
+                            #CAPTVESS=="seapearl" ~"",
                             grepl(tolower('COOKE'),tolower(CAPTOR)) ~"e035",
                             grepl(tolower('A.MANSTED'),tolower(CAPTOR)) ~"e009",
                             grepl(tolower('A.SPINELLA'),tolower(CAPTOR)) ~"f277",
@@ -236,13 +238,13 @@ Tagging=Tagging%>%
                             grepl(tolower('PARKER'),tolower(CAPTOR)) ~"f417",
                             grepl(tolower('GOODAL'),tolower(CAPTOR)) ~"e007",
                             grepl(tolower('Tonkin'),tolower(CAPTOR)) ~"e034",
-                            #grepl(tolower('Beveridge'),tolower(CAPTOR)) ~"",    #missing, Sarah is looking into this
-                            #grepl(tolower('MARKELLOS'),tolower(CAPTOR)) ~"",
+                            grepl(tolower('Beveridge'),tolower(CAPTOR)) ~"f70",    
+                            #grepl(tolower('MARKELLOS'),tolower(CAPTOR)) ~"",   #missing, Sarah is looking into this
                             #grepl(tolower('B.HAY'),tolower(CAPTOR)) ~"",
                             #grepl(tolower('B.TURNER'),tolower(CAPTOR)) ~"",
                             #grepl(tolower('C.HAYES'),tolower(CAPTOR)) ~"",
                             #grepl(tolower('D.WILLIAMS'),tolower(CAPTOR)) ~"",
-                            #grepl(tolower('G.GREEN'),tolower(CAPTOR)) ~"",
+                            grepl(tolower('G.GREEN'),tolower(CAPTOR)) ~"f244",
                             #grepl(tolower('G.KENNEDY'),tolower(CAPTOR)) ~"",
                             #grepl(tolower('G.SCHMUCKER'),tolower(CAPTOR)) ~"",
                             #grepl(tolower('Greg Whtstone'),tolower(CAPTOR)) ~"",
@@ -252,10 +254,10 @@ Tagging=Tagging%>%
                             #grepl(tolower('M. Reynolds'),tolower(CAPTOR)) ~"",
                             #grepl(tolower('M.MANNERS'),tolower(CAPTOR)) ~"",
                             #grepl(tolower('N. LUCAS'),tolower(CAPTOR)) ~"",
-                            #grepl(tolower('N.SOULOS'),tolower(CAPTOR)) ~"",
+                            grepl(tolower('N.SOULOS'),tolower(CAPTOR)) ~"b067",
                             #grepl(tolower('R. Wilson'),tolower(CAPTOR)) ~"",
                             #grepl(tolower('R.PLUG'),tolower(CAPTOR)) ~"",
-                            #grepl(tolower('S.MACKENZIE'),tolower(CAPTOR)) ~"",
+                            grepl(tolower('S.MACKENZIE'),tolower(CAPTOR)) ~"e007",
                             TRUE~CAPTVESS)) 
 
 #release and recapture methods 
@@ -714,6 +716,11 @@ ind=which(duplicated(Tagging$Unico)==T)
 Dup.Tags=Tagging$Unico[ind]
 if(length(Dup.Tags)>0)Tagging=Tagging[!(duplicated(Tagging$Unico)),-match("Unico",names(Tagging))]
 
+#fix some rec methods
+Tagging=Tagging%>%
+  mutate(Rec.method=case_when(is.na(Rec.method) & FINTAGNO=='1525' & Species=='WH' ~'Commercial gillnet',
+                              is.na(Rec.method) & FINTAGNO=='12849' & Species=='TK' ~'Commercial gillnet',
+                              TRUE~Rec.method))
 
 #Remove CAPTVESS if Recaptured=='No'
 Tagging=Tagging%>%mutate(CAPTVESS=ifelse(Recaptured=='No',NA,CAPTVESS))
