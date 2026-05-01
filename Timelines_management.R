@@ -2,10 +2,11 @@
 Management=read.csv(handl_OneDrive('Management/Sharks/Timeline management measures/Management_timeline.csv'))
 
 #New timeline
-fun.management.timeline=function(Management,drop.data.labels=TRUE,Ymax=NA)
+fun.management.timeline=function(Management,drop.data.labels=TRUE,Ymax=NA,labl.size=3.5,pt.siz=2,
+                                 Right.Margin=130)
 {
   Start.managed=Management%>%filter(Label=='JASDGDLF comes into effect')%>%pull(StartDate)
-  
+  Start.managed.NSF=Management%>%filter(Label=='JANSF comes into effect')%>%pull(StartDate)
   Management=Management%>%
     mutate(Use=case_when(Label==""~'No',
                          Label%in%c("Concern over mercury","Sale ban of large sharks")~'No',
@@ -14,8 +15,6 @@ fun.management.timeline=function(Management,drop.data.labels=TRUE,Ymax=NA)
     filter(Use=='Yes')%>%
     mutate(date=as.POSIXct(StartDate,format="%d/%m/%Y"))%>%
     dplyr::select(date,Label)
-  
-  
   if(drop.data.labels)
   {
     Management=Management%>%
@@ -23,7 +22,6 @@ fun.management.timeline=function(Management,drop.data.labels=TRUE,Ymax=NA)
                              TRUE~Label))%>%
       filter(!grepl('data reporting',Label))
   }
-  
   Management=Management%>%
     arrange(date)%>%
     mutate(id = -row_number(),
@@ -32,44 +30,75 @@ fun.management.timeline=function(Management,drop.data.labels=TRUE,Ymax=NA)
                          grepl('listing',Label)~'Listing',
                          TRUE~'Other'),
            Label=str_remove(Label, "Closure - "))
-  
-  
-  
   Hoy=as.character(format(Sys.Date(), "%d/%m/%Y"))
-  Time.blocks=data.frame(Type=factor(c('Open access','Managed'),levels=c('Open access','Managed')),
+  Time.blocks=data.frame(Type=factor(c('Open access','Managed (South)'),levels=c('Open access','Managed (South)')),
                          Date.start=as.POSIXct(c("01/01/1940",Start.managed),format="%d/%m/%Y"),
                          Date.end=as.POSIXct(c(Start.managed,Hoy),format="%d/%m/%Y"))%>%
-    mutate(Mid=Date.start+(Date.end-Date.start)/2 )
+                mutate(Mid=Date.start+(Date.end-Date.start)/2 )
+  Time.blocks.NSF=data.frame(Type=factor(c('Open access','Managed (North)'),levels=c('Open access','Managed (North)')),
+                         Date.start=as.POSIXct(c("01/01/1940",Start.managed.NSF),format="%d/%m/%Y"),
+                         Date.end=as.POSIXct(c(Start.managed.NSF,Hoy),format="%d/%m/%Y"))%>%
+              mutate(Mid=Date.start+(Date.end-Date.start)/2 )
   
+  colfunc.timeline <- colorRampPalette(c("snow1", "steelblue4"))
   
+  #set up graph
   p=ggplot()+
     geom_rect(data=Time.blocks,aes(xmin = Date.start,xmax = Date.end,ymin=0,ymax=2,
                                    fill=Type),show.legend = FALSE)+
-    geom_text(data=Time.blocks,aes(x=Mid,y=1,label=Type),size=5,color='white')+
-    scale_x_date(date_labels = "%Y", date_breaks = "10 years")+
+    geom_rect(data=Time.blocks.NSF,aes(xmin = Date.start,xmax = Date.end,ymin=1,ymax=2,
+                                       fill=Type),show.legend = FALSE)+
+    geom_text(data=rbind(Time.blocks,Time.blocks.NSF)%>%distinct(Type,.keep_all = T)%>%
+                mutate(Y=case_when(Type=='Open access'~1,
+                                   Type=='Managed (South)'~0.5,
+                                   Type=='Managed (North)'~1.5)),
+              aes(x=Mid,y=Y,label=Type),size=(labl.size+1.2),color='white')+
+    scale_x_date(date_labels = "%Y", date_breaks = "10 years")
+  
+  #add decadal panels
+  built_plot <- ggplot_build(p)
+  breaks_numeric <- built_plot$layout$panel_params[[1]]$x$get_breaks()
+  breaks_dates <- as.Date(breaks_numeric, origin = "1970-01-01")
+  breaks_dates[1]=as.Date(min(Management$date))
+  breaks_dates=subset(breaks_dates,!is.na(breaks_dates))
+  bg_data <- data.frame(start = head(breaks_dates, -1),
+                        end = tail(breaks_dates, -1),
+                        decade = as.factor(head(format(breaks_dates, "%Y"), -1)))
+  Decade.col=rev(colfunc.timeline(length(breaks_dates)+1))
+  names(Decade.col)=bg_data$decade
+  p=p + 
+    geom_rect(data = bg_data, 
+              aes(xmin = start, xmax = end, ymin = -Inf, ymax = 0, fill = decade),
+              inherit.aes = FALSE, alpha = 0.45,show.legend = FALSE)+
+    scale_fill_manual(values = c(Decade.col,"Open access" = "black", "Managed" = "grey50")) 
+  #add extra stuff
+  p=p+
     geom_segment(data=Management,aes(x = date, y = id, xend = date, yend = 0),
-                 linetype = "dashed", color = "grey40")+
+                 linetype = "dotted", color = "black",alpha=0.5,linewidth=.4)+
     geom_text(data = Management, aes(x = date, y = id, label = Label,color = KLS), 
-              angle = 0, vjust = .5, hjust = -.025, size = 3.5)+
-    geom_point(data = Management,aes(x=date,y=id))+xlab('')+
+              angle = 0, vjust = .5, hjust = -.025, size = labl.size)+
+    geom_point(data = Management,aes(x=date,y=id),size=pt.siz)+
+    xlab('')+ylab('')+
     scale_y_continuous(limits = c(min(Management$id),Ymax),
-                       labels = function(x) ifelse(x < 0, "", x))+
+                       labels = function(x) ifelse(x <= 0, "", x),expand = c(0.01, 0))+
     coord_cartesian(clip = "off")+ 
     theme_minimal() +
-    theme(panel.grid.major.y = element_blank(), 
+    theme(axis.text.x = element_text(size=(4*labl.size)),
+          panel.grid.major.y = element_blank(),
+          panel.grid.major.x = element_blank(),
           panel.grid.minor.y = element_blank(),
           panel.grid.minor.x = element_blank(),
           legend.position = 'bottom',
+          legend.margin = margin(t = -20, unit = "pt"),
           legend.title = element_blank(),
-          plot.margin = margin(5.5, 130, 5.5, 5.5, "pt"),
+          plot.margin = margin(0, Right.Margin, 0, 0, "pt"),
           legend.key = element_blank())+
-    scale_fill_manual(values = c("Open access" = "black", "Managed" = "grey40"))+
-    scale_color_manual(values = c("Closure" = "red4", "Listing" = "steelblue",
+    scale_color_manual(values = c(Decade.col,"Closure" = "red4", "Listing" = "forestgreen",
                                   "Other" = "black"))+
-    guides(color = guide_legend(
-      override.aes = list(label = c("Closure", "Listing", "Other"),size=5, face = "bold"), 
-      label.theme = element_text(color='transparent') 
-    ))
+    guides(color = guide_legend(override.aes = list(label = c("Closure", "Listing", "Other"),size=5,
+                                                    face = "bold"), 
+           label.theme = element_text(color='transparent')))
+    
   return(p)
 }
 
